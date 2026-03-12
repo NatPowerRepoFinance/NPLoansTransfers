@@ -1,0 +1,963 @@
+import { ClockIcon, DocumentTextIcon, TableCellsIcon } from "@heroicons/react/24/outline";
+import { Field, Label } from "@headlessui/react";
+import ReactSelect from "react-select";
+import { AgGridReact } from "ag-grid-react";
+import type { ColDef } from "ag-grid-community";
+import type { LoanFacility } from "../../utils/constants";
+
+type LoanFacilityTabProps = {
+  isDarkMode: boolean;
+  visibleLoans: Array<{ id: string; name: string }>;
+  selectedLoanId: string;
+  setSelectedLoanId: (value: string) => void;
+  setIsCreatingLoan: (value: boolean) => void;
+  showOnlyActiveLoanFacilities: boolean;
+  setShowOnlyActiveLoanFacilities: (value: boolean) => void;
+  handleNewLoanFacility: () => void;
+  handleEditLoanFacility: () => void;
+  handleDeleteLoanFacility: () => void;
+  exportLoanFacilityToExcel: () => void;
+  exportLoanFacilityToPDF: () => void;
+  setShowLoanFacilityHistoryModal: (value: boolean) => void;
+  showLoanFacilityHistoryModal: boolean;
+  showLoanFacilityModal: boolean;
+  setShowLoanFacilityModal: (value: boolean) => void;
+  loanForm: {
+    facilityName: string;
+    status: LoanFacility["status"];
+    lenderCompanyId: string;
+    borrowerCompanyId: string;
+    agreementDate: string;
+    currency: LoanFacility["currency"];
+    annualInterestRate: number;
+    daysInYear: number;
+  };
+  setLoanForm: React.Dispatch<
+    React.SetStateAction<{
+      facilityName: string;
+      status: LoanFacility["status"];
+      lenderCompanyId: string;
+      borrowerCompanyId: string;
+      agreementDate: string;
+      currency: LoanFacility["currency"];
+      annualInterestRate: number;
+      daysInYear: number;
+    }>
+  >;
+  companies: Array<{ id: string; name: string }>;
+  handleSaveLoanFacility: () => void;
+  selectedLoanFacility: unknown;
+  loanFacilityFieldValue: (keys: string[], fallback?: string) => string;
+  handleOpenAddScheduleRowModal: () => void;
+  openImportScheduleModal: () => void;
+  calculatedRows: Array<{ [key: string]: unknown }>;
+  scheduleColumnDefs: ColDef<any>[];
+  isImportScheduleModalOpen: boolean;
+  downloadScheduleImportTemplate: () => void;
+  triggerScheduleImportFile: () => void;
+  importScheduleFile: File | null;
+  scheduleImportInputRef: React.RefObject<HTMLInputElement | null>;
+  handleScheduleImportFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  importScheduleMode: "overwrite" | "extend";
+  setImportScheduleMode: (value: "overwrite" | "extend") => void;
+  errorMessage: string | null;
+  closeImportScheduleModal: () => void;
+  handleImportSchedule: () => void;
+  showScheduleRowModal: boolean;
+  setShowScheduleRowModal: (value: boolean) => void;
+  scheduleForm: {
+    startDate: string;
+    endDate: string;
+    lenderBankAccount: string;
+    borrowerBankAccount: string;
+    annualInterestRate: string;
+    drawDown: string;
+    repayment: string;
+    fees: string;
+  };
+  setScheduleForm: React.Dispatch<
+    React.SetStateAction<{
+      startDate: string;
+      endDate: string;
+      lenderBankAccount: string;
+      borrowerBankAccount: string;
+      annualInterestRate: string;
+      drawDown: string;
+      repayment: string;
+      fees: string;
+    }>
+  >;
+  availableBankAccounts: string[];
+  handleSaveScheduleRow: () => void;
+};
+
+export default function LoanFacilityTab(props: LoanFacilityTabProps) {
+  const {
+    isDarkMode,
+    visibleLoans,
+    selectedLoanId,
+    setSelectedLoanId,
+    setIsCreatingLoan,
+    showOnlyActiveLoanFacilities,
+    setShowOnlyActiveLoanFacilities,
+    handleNewLoanFacility,
+    handleEditLoanFacility,
+    handleDeleteLoanFacility,
+    exportLoanFacilityToExcel,
+    exportLoanFacilityToPDF,
+    setShowLoanFacilityHistoryModal,
+    showLoanFacilityHistoryModal,
+    showLoanFacilityModal,
+    setShowLoanFacilityModal,
+    loanForm,
+    setLoanForm,
+    companies,
+    handleSaveLoanFacility,
+    selectedLoanFacility,
+    loanFacilityFieldValue,
+    handleOpenAddScheduleRowModal,
+    openImportScheduleModal,
+    calculatedRows,
+    scheduleColumnDefs,
+    isImportScheduleModalOpen,
+    downloadScheduleImportTemplate,
+    triggerScheduleImportFile,
+    importScheduleFile,
+    scheduleImportInputRef,
+    handleScheduleImportFileChange,
+    importScheduleMode,
+    setImportScheduleMode,
+    errorMessage,
+    closeImportScheduleModal,
+    handleImportSchedule,
+    showScheduleRowModal,
+    setShowScheduleRowModal,
+    scheduleForm,
+    setScheduleForm,
+    availableBankAccounts,
+    handleSaveScheduleRow,
+  } = props;
+
+  return (
+    <div
+      className={`rounded-xl border shadow-sm p-5 sm:p-6 ${
+        isDarkMode ? "bg-gray-900 border-gray-700" : "bg-white border-gray-200"
+      }`}
+    >
+      <div className={`rounded-lg p-8 ${isDarkMode ? "bg-gray-800" : "bg-gray-50"}`}>
+        <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between" role="group">
+          <Field className="flex flex-wrap items-center gap-1 sm:gap-3 w-full">
+            <Label
+              className={`inline text-base font-medium ${isDarkMode ? "text-gray-200" : "text-gray-600"} mr-3`}
+            >
+              Select Loan Facility:
+            </Label>
+
+            <ReactSelect
+              theme={(theme) => ({
+                ...theme,
+                borderRadius: 9,
+                colors: {
+                  ...theme.colors,
+                  primary: "black",
+                },
+              })}
+              className="text-base focus:ring-2 focus:ring-[#1D2636]/20 w-72 rounded-2xl bg-white! z-10"
+              classNamePrefix="loan-facility-select"
+              name="selectedLoanId"
+              options={visibleLoans.map((loan) => ({
+                value: loan.id,
+                label: loan.name,
+              }))}
+              value={
+                visibleLoans
+                  .map((loan) => ({ value: loan.id, label: loan.name }))
+                  .find((opt) => String(opt.value) === String(selectedLoanId)) || null
+              }
+              onChange={(selected) => {
+                const nextLoanId = String(selected?.value || "");
+                setSelectedLoanId(nextLoanId);
+                setIsCreatingLoan(false);
+              }}
+              placeholder="Select Loan Facility"
+              styles={
+                isDarkMode
+                  ? {
+                      control: (base, state) => ({
+                        ...base,
+                        backgroundColor: "#23252A",
+                        borderRadius: "0.75rem",
+                        minHeight: "42px",
+                        borderColor: state.isFocused ? "#1D2636" : base.borderColor,
+                        boxShadow: state.isFocused ? "0 0 0 2px rgba(29,38,54,0.2)" : "none",
+                        "&:hover": { borderColor: "#1D2636" },
+                      }),
+                      valueContainer: (base) => ({
+                        ...base,
+                        backgroundColor: "#23252A",
+                        color: "#fff",
+                      }),
+                      input: (base) => ({ ...base, color: "#fff" }),
+                      singleValue: (base) => ({ ...base, color: "#fff" }),
+                      placeholder: (base) => ({ ...base, color: "#9CA3AF" }),
+                      menu: (base) => ({
+                        ...base,
+                        zIndex: 30,
+                        backgroundColor: "#23252A",
+                        color: "#fff",
+                      }),
+                      option: (base, state) => ({
+                        ...base,
+                        backgroundColor: state.isFocused ? "#3B3F47" : "#23252A",
+                        color: "#fff",
+                        cursor: "pointer",
+                      }),
+                    }
+                  : {
+                      control: (base, state) => ({
+                        ...base,
+                        backgroundColor: "#ffffff",
+                        borderRadius: "0.75rem",
+                        minHeight: "42px",
+                        borderColor: state.isFocused ? "#4f46e5" : "#e5e7eb",
+                        boxShadow: state.isFocused ? "0 0 0 2px rgba(79,70,229,0.2)" : "none",
+                        "&:hover": { borderColor: "#4f46e5" },
+                      }),
+                      valueContainer: (base) => ({
+                        ...base,
+                        backgroundColor: "#ffffff",
+                        color: "#000",
+                      }),
+                      input: (base) => ({ ...base, color: "#000" }),
+                      singleValue: (base) => ({ ...base, color: "#000" }),
+                      placeholder: (base) => ({ ...base, color: "#6b7280" }),
+                      menu: (base) => ({
+                        ...base,
+                        zIndex: 30,
+                        backgroundColor: "#ffffff",
+                        color: "#000",
+                      }),
+                      option: (base, state) => ({
+                        ...base,
+                        backgroundColor: state.isFocused ? "#f3f4f6" : "#ffffff",
+                        color: "#000",
+                        cursor: "pointer",
+                      }),
+                    }
+              }
+            />
+            <label
+              className={`inline-flex items-center gap-2 ml-2 text-sm font-medium ${
+                isDarkMode ? "text-gray-200" : "text-gray-700"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={showOnlyActiveLoanFacilities}
+                onChange={(e) => setShowOnlyActiveLoanFacilities(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              Only Active
+            </label>
+            <button
+              type="button"
+              onClick={handleNewLoanFacility}
+              className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
+                isDarkMode
+                  ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
+                  : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
+              }`}
+            >
+              New
+            </button>
+            <button
+              type="button"
+              onClick={handleEditLoanFacility}
+              className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
+                isDarkMode
+                  ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
+                  : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
+              }`}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteLoanFacility}
+              className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
+                isDarkMode
+                  ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
+                  : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
+              }`}
+            >
+              Delete
+            </button>
+            <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto justify-end pt-1 sm:pt-0">
+              <button
+                type="button"
+                onClick={exportLoanFacilityToExcel}
+                title="Export Excel"
+                aria-label="Export Excel"
+                className={`inline-flex items-center justify-center p-2 rounded-lg text-sm font-medium border transition ${
+                  isDarkMode
+                    ? "bg-emerald-900/30 border-emerald-700 text-emerald-200 hover:bg-emerald-800/40"
+                    : "bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+                }`}
+              >
+                <TableCellsIcon className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={exportLoanFacilityToPDF}
+                title="Export PDF"
+                aria-label="Export PDF"
+                className={`inline-flex items-center justify-center p-2 rounded-lg text-sm font-medium border transition ${
+                  isDarkMode
+                    ? "bg-red-900/30 border-red-700 text-red-200 hover:bg-red-800/40"
+                    : "bg-red-50 border-red-300 text-red-700 hover:bg-red-100"
+                }`}
+              >
+                <DocumentTextIcon className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLoanFacilityHistoryModal(true)}
+                className={`inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium border transition ${
+                  isDarkMode
+                    ? "bg-indigo-900/30 border-indigo-700 text-indigo-200 hover:bg-indigo-800/40"
+                    : "bg-indigo-50 border-indigo-300 text-indigo-700 hover:bg-indigo-100"
+                }`}
+              >
+                <ClockIcon className="w-3 h-3" />
+                History
+              </button>
+            </div>
+          </Field>
+        </div>
+
+        {showLoanFacilityHistoryModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className={`rounded-lg p-6 w-full max-w-2xl ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold">Loan Facility Change History</h3>
+                <button
+                  onClick={() => setShowLoanFacilityHistoryModal(false)}
+                  className={`px-3 py-1 rounded-md text-sm ${
+                    isDarkMode
+                      ? "bg-gray-700 hover:bg-gray-600 text-white"
+                      : "bg-gray-200 hover:bg-gray-300 text-black"
+                  }`}
+                >
+                  Close
+                </button>
+              </div>
+              <div className={`rounded-lg border p-6 text-sm ${isDarkMode ? "border-gray-700 text-gray-300" : "border-gray-200 text-gray-700"}`}>
+                No history yet.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showLoanFacilityModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className={`rounded-lg p-6 w-full max-w-3xl ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
+              <h3 className="text-xl font-semibold mb-4">Add Loan Facility</h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Facility Name
+                  </label>
+                  <input
+                    type="text"
+                    value={loanForm.facilityName}
+                    onChange={(e) =>
+                      setLoanForm((prev) => ({ ...prev, facilityName: e.target.value }))
+                    }
+                    placeholder="Enter facility name"
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      isDarkMode
+                        ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                        : "bg-white border-gray-300 text-black placeholder-gray-500"
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Status
+                  </label>
+                  <select
+                    value={loanForm.status}
+                    onChange={(e) =>
+                      setLoanForm((prev) => ({
+                        ...prev,
+                        status: e.target.value as LoanFacility["status"],
+                      }))
+                    }
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      isDarkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300 text-black"
+                    }`}
+                  >
+                    <option value="">Select status</option>
+                    <option value="Active">Active</option>
+                    <option value="Closed">Closed</option>
+                    <option value="Archived">Archived</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Lender
+                  </label>
+                  <select
+                    value={loanForm.lenderCompanyId}
+                    onChange={(e) =>
+                      setLoanForm((prev) => ({ ...prev, lenderCompanyId: e.target.value }))
+                    }
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      isDarkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300 text-black"
+                    }`}
+                  >
+                    <option value="">Select Lender</option>
+                    {companies.map((company) => (
+                      <option key={`lender-${company.id}`} value={company.id}>
+                        {company.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Borrower
+                  </label>
+                  <select
+                    value={loanForm.borrowerCompanyId}
+                    onChange={(e) =>
+                      setLoanForm((prev) => ({ ...prev, borrowerCompanyId: e.target.value }))
+                    }
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      isDarkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300 text-black"
+                    }`}
+                  >
+                    <option value="">Select Borrower</option>
+                    {companies.map((company) => (
+                      <option key={`borrower-${company.id}`} value={company.id}>
+                        {company.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Agreement Date
+                  </label>
+                  <input
+                    type="date"
+                    value={loanForm.agreementDate}
+                    onChange={(e) =>
+                      setLoanForm((prev) => ({ ...prev, agreementDate: e.target.value }))
+                    }
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      isDarkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300 text-black"
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Currency
+                  </label>
+                  <select
+                    value={loanForm.currency}
+                    onChange={(e) =>
+                      setLoanForm((prev) => ({
+                        ...prev,
+                        currency: e.target.value as LoanFacility["currency"],
+                      }))
+                    }
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      isDarkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300 text-black"
+                    }`}
+                  >
+                    <option value="">Select currency</option>
+                    <option value="GBP">GBP</option>
+                    <option value="EUR">EUR</option>
+                    <option value="USD">USD</option>
+                    <option value="YEN">YEN</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Annual Interest rate %
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={loanForm.annualInterestRate}
+                    onChange={(e) =>
+                      setLoanForm((prev) => ({
+                        ...prev,
+                        annualInterestRate: Number(e.target.value),
+                      }))
+                    }
+                    placeholder="Enter annual interest rate"
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      isDarkMode
+                        ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                        : "bg-white border-gray-300 text-black placeholder-gray-500"
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Days in Year
+                  </label>
+                  <input
+                    type="text"
+                    value={loanForm.daysInYear}
+                    onChange={(e) =>
+                      setLoanForm((prev) => ({
+                        ...prev,
+                        daysInYear: Number(e.target.value),
+                      }))
+                    }
+                    placeholder="Enter days in year"
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      isDarkMode
+                        ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                        : "bg-white border-gray-300 text-black placeholder-gray-500"
+                    }`}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowLoanFacilityModal(false)}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+                    isDarkMode
+                      ? "bg-gray-700 hover:bg-gray-600 text-white"
+                      : "bg-gray-200 hover:bg-gray-300 text-black"
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveLoanFacility}
+                  className="flex-1 px-4 py-2 rounded-lg font-medium transition bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className={`rounded-xl border p-6 ${isDarkMode ? "bg-gray-900 border-gray-700" : "bg-white border-gray-200"}`}>
+          <div>
+            {!selectedLoanFacility && (
+              <p className={`mb-5 ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                Please select a Loan Facility to view its details.
+              </p>
+            )}
+            <h3 className="text-xl font-semibold mb-5">
+              {loanFacilityFieldValue(["facilityName", "name"], "Loan Facility")}
+            </h3>
+            <div className={`rounded-lg border px-4 py-4 overflow-hidden ${isDarkMode ? "border-gray-700 bg-gray-800" : "border-gray-200 bg-gray-50"}`}>
+              <h4 className="text-base font-semibold mb-3">Loan Details</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-3 text-sm">
+                <div>
+                  <span className={`block text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Status</span>
+                  <span>{loanFacilityFieldValue(["status"])}</span>
+                </div>
+                <div>
+                  <span className={`block text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Start Date</span>
+                  <span>{loanFacilityFieldValue(["startDate", "start_date", "agreementDate", "agreement_date"], "-")}</span>
+                </div>
+                <div>
+                  <span className={`block text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Close Date</span>
+                  <span>{loanFacilityFieldValue(["closeDate", "close_date"], "-")}</span>
+                </div>
+                <div>
+                  <span className={`block text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Lender</span>
+                  <span>{loanFacilityFieldValue(["lender", "lenderName"])}</span>
+                </div>
+                <div>
+                  <span className={`block text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Borrower</span>
+                  <span>{loanFacilityFieldValue(["borrower", "borrowerName"])}</span>
+                </div>
+                <div>
+                  <span className={`block text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Agreement Date</span>
+                  <span>{loanFacilityFieldValue(["agreementDate", "agreement_date"], "-")}</span>
+                </div>
+                <div>
+                  <span className={`block text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Currency</span>
+                  <span>{loanFacilityFieldValue(["currency"])}</span>
+                </div>
+                <div>
+                  <span className={`block text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Annual Interest Rate %</span>
+                  <span>{loanFacilityFieldValue(["annualInterestRate", "annual_interest_rate"], "0")}</span>
+                </div>
+                <div>
+                  <span className={`block text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Days in Year</span>
+                  <span>{loanFacilityFieldValue(["daysInYear", "days_in_year"], "365")}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className={`mt-6 rounded-lg border p-4 ${isDarkMode ? "border-gray-700 bg-gray-800" : "border-gray-200 bg-gray-50"}`}>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h4 className="text-lg font-semibold">Draw Down Schedule</h4>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleOpenAddScheduleRowModal}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                      isDarkMode
+                        ? "bg-indigo-600 hover:bg-indigo-500 text-white"
+                        : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                    }`}
+                  >
+                    Add Row
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openImportScheduleModal}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
+                      isDarkMode
+                        ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
+                        : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
+                    }`}
+                  >
+                    Import Schedule
+                  </button>
+                </div>
+              </div>
+              <div className={`drawdown-schedule-scroll w-full max-w-full overflow-x-auto overflow-y-hidden rounded-lg border ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
+                <div
+                  className={`${isDarkMode ? "ag-theme-alpine-dark" : "ag-theme-alpine"}`}
+                  style={{ width: "100%", height: 360 }}
+                >
+                  <AgGridReact
+                    key={`${selectedLoanId}-${calculatedRows.length}`}
+                    rowData={calculatedRows}
+                    columnDefs={scheduleColumnDefs}
+                    defaultColDef={{
+                      sortable: false,
+                      resizable: true,
+                      filter: false,
+                      minWidth: 110,
+                    }}
+                    rowHeight={42}
+                    headerHeight={42}
+                    suppressCellFocus
+                    overlayNoRowsTemplate="No draw down schedule rows available."
+                  />
+                </div>
+              </div>
+            </div>
+
+            {isImportScheduleModalOpen && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className={`rounded-lg p-6 w-full max-w-lg ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
+                  <h3 className="text-xl font-semibold mb-4">Import Draw Down Schedule</h3>
+
+                  <div className="space-y-4">
+                    <button
+                      type="button"
+                      onClick={downloadScheduleImportTemplate}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
+                        isDarkMode
+                          ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
+                          : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
+                      }`}
+                    >
+                      Download Template
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={triggerScheduleImportFile}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
+                          isDarkMode
+                            ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
+                            : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
+                        }`}
+                      >
+                        Choose File
+                      </button>
+                      <span className={`text-sm ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                        {importScheduleFile
+                          ? importScheduleFile.name
+                          : "File (.xlsx, .xls, .csv)"}
+                      </span>
+                      <input
+                        ref={scheduleImportInputRef}
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        onChange={handleScheduleImportFileChange}
+                        className="hidden"
+                      />
+                    </div>
+
+                    <div>
+                      <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                        Import Mode
+                      </label>
+                      <select
+                        value={importScheduleMode}
+                        onChange={(e) =>
+                          setImportScheduleMode(e.target.value as "overwrite" | "extend")
+                        }
+                        className={`w-full px-3 py-2 border rounded-lg ${
+                          isDarkMode
+                            ? "bg-gray-700 border-gray-600 text-white"
+                            : "bg-white border-gray-300 text-black"
+                        }`}
+                      >
+                        <option value="extend">Extend existing schedule</option>
+                        <option value="overwrite">Overwrite existing schedule</option>
+                      </select>
+                    </div>
+
+                    {errorMessage && (
+                      <div className="text-sm text-red-500">{errorMessage}</div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-3 mt-6">
+                    <button
+                      type="button"
+                      onClick={closeImportScheduleModal}
+                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+                        isDarkMode
+                          ? "bg-gray-700 hover:bg-gray-600 text-white"
+                          : "bg-gray-200 hover:bg-gray-300 text-black"
+                      }`}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleImportSchedule}
+                      className="flex-1 px-4 py-2 rounded-lg font-medium transition bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                      Import
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showScheduleRowModal && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className={`rounded-lg p-6 w-full max-w-2xl ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
+                  <h3 className="text-xl font-semibold mb-4">Add Schedule Row</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                        Start Date
+                      </label>
+                      <input
+                        type="date"
+                        value={scheduleForm.startDate}
+                        onChange={(e) =>
+                          setScheduleForm((prev) => ({ ...prev, startDate: e.target.value }))
+                        }
+                        className={`w-full px-3 py-2 border rounded-lg ${
+                          isDarkMode
+                            ? "bg-gray-700 border-gray-600 text-white"
+                            : "bg-white border-gray-300 text-black"
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                        End Date
+                      </label>
+                      <input
+                        type="date"
+                        value={scheduleForm.endDate}
+                        onChange={(e) =>
+                          setScheduleForm((prev) => ({ ...prev, endDate: e.target.value }))
+                        }
+                        className={`w-full px-3 py-2 border rounded-lg ${
+                          isDarkMode
+                            ? "bg-gray-700 border-gray-600 text-white"
+                            : "bg-white border-gray-300 text-black"
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                        Lender Bank Account
+                      </label>
+                      <select
+                        value={scheduleForm.lenderBankAccount}
+                        onChange={(e) =>
+                          setScheduleForm((prev) => ({
+                            ...prev,
+                            lenderBankAccount: e.target.value,
+                          }))
+                        }
+                        className={`w-full px-3 py-2 border rounded-lg ${
+                          isDarkMode
+                            ? "bg-gray-700 border-gray-600 text-white"
+                            : "bg-white border-gray-300 text-black"
+                        }`}
+                      >
+                        <option value="">Select lender bank account</option>
+                        {availableBankAccounts.map((account) => (
+                          <option key={`lender-account-${account}`} value={account}>
+                            {account}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                        Borrower Bank Account
+                      </label>
+                      <select
+                        value={scheduleForm.borrowerBankAccount}
+                        onChange={(e) =>
+                          setScheduleForm((prev) => ({
+                            ...prev,
+                            borrowerBankAccount: e.target.value,
+                          }))
+                        }
+                        className={`w-full px-3 py-2 border rounded-lg ${
+                          isDarkMode
+                            ? "bg-gray-700 border-gray-600 text-white"
+                            : "bg-white border-gray-300 text-black"
+                        }`}
+                      >
+                        <option value="">Select borrower bank account</option>
+                        {availableBankAccounts.map((account) => (
+                          <option key={`borrower-account-${account}`} value={account}>
+                            {account}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                        Annual Interest Rate %
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={scheduleForm.annualInterestRate}
+                        onChange={(e) =>
+                          setScheduleForm((prev) => ({
+                            ...prev,
+                            annualInterestRate: e.target.value,
+                          }))
+                        }
+                        className={`w-full px-3 py-2 border rounded-lg ${
+                          isDarkMode
+                            ? "bg-gray-700 border-gray-600 text-white"
+                            : "bg-white border-gray-300 text-black"
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                        Draw Down
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={scheduleForm.drawDown}
+                        onChange={(e) =>
+                          setScheduleForm((prev) => ({ ...prev, drawDown: e.target.value }))
+                        }
+                        className={`w-full px-3 py-2 border rounded-lg ${
+                          isDarkMode
+                            ? "bg-gray-700 border-gray-600 text-white"
+                            : "bg-white border-gray-300 text-black"
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                        Repayment
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={scheduleForm.repayment}
+                        onChange={(e) =>
+                          setScheduleForm((prev) => ({ ...prev, repayment: e.target.value }))
+                        }
+                        className={`w-full px-3 py-2 border rounded-lg ${
+                          isDarkMode
+                            ? "bg-gray-700 border-gray-600 text-white"
+                            : "bg-white border-gray-300 text-black"
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                        Fees
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={scheduleForm.fees}
+                        onChange={(e) =>
+                          setScheduleForm((prev) => ({ ...prev, fees: e.target.value }))
+                        }
+                        className={`w-full px-3 py-2 border rounded-lg ${
+                          isDarkMode
+                            ? "bg-gray-700 border-gray-600 text-white"
+                            : "bg-white border-gray-300 text-black"
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 mt-6">
+                    <button
+                      type="button"
+                      onClick={() => setShowScheduleRowModal(false)}
+                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+                        isDarkMode
+                          ? "bg-gray-700 hover:bg-gray-600 text-white"
+                          : "bg-gray-200 hover:bg-gray-300 text-black"
+                      }`}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveScheduleRow}
+                      className="flex-1 px-4 py-2 rounded-lg font-medium transition bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                      Save Row
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

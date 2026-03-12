@@ -1,0 +1,732 @@
+openapi: 3.0.3
+info:
+  title: NatPower Loans and Inter Company Transfers API
+  version: 1.0.0
+  description: API skeleton aligned with TechnicalScope.md
+servers:
+  - url: /api/v1
+tags:
+  - name: Users
+  - name: Auth
+  - name: Companies
+  - name: LoanFacilities
+  - name: Schedule
+  - name: History
+paths:
+  /users:
+    get:
+      tags: [Users]
+      summary: List approved users
+      responses:
+        '200':
+          description: Approved users list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccessUser'
+    post:
+      tags: [Users]
+      summary: Create approved user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccessUserCreateRequest'
+      responses:
+        '201':
+          description: Approved user created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessUser'
+
+  /users/{userId}:
+    put:
+      tags: [Users]
+      summary: Update approved user
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccessUserUpdateRequest'
+      responses:
+        '200':
+          description: Approved user updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessUser'
+    delete:
+      tags: [Users]
+      summary: Delete approved user
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      responses:
+        '204':
+          description: Approved user deleted
+
+  /auth/sso-login:
+    post:
+      tags: [Auth]
+      summary: Validate SSO email against approved users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SsoLoginRequest'
+      responses:
+        '200':
+          description: Login accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSession'
+        '403':
+          description: Login denied
+
+  /companies:
+    get:
+      tags: [Companies]
+      summary: List companies
+      responses:
+        '200':
+          description: Company list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Company'
+    post:
+      tags: [Companies]
+      summary: Create company
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyCreateRequest'
+      responses:
+        '201':
+          description: Company created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+  /companies/{companyId}:
+    put:
+      tags: [Companies]
+      summary: Update company
+      parameters:
+        - $ref: '#/components/parameters/companyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyUpdateRequest'
+      responses:
+        '200':
+          description: Company updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+    delete:
+      tags: [Companies]
+      summary: Delete company
+      parameters:
+        - $ref: '#/components/parameters/companyId'
+      responses:
+        '204':
+          description: Company deleted
+
+  /loan-facilities:
+    get:
+      tags: [LoanFacilities]
+      summary: List loan facilities
+      responses:
+        '200':
+          description: Loan facility list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LoanFacility'
+    post:
+      tags: [LoanFacilities]
+      summary: Create loan facility
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoanFacilityCreateRequest'
+      responses:
+        '201':
+          description: Loan facility created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanFacility'
+
+  /loan-facilities/{loanId}:
+    get:
+      tags: [LoanFacilities]
+      summary: Get loan facility details
+      parameters:
+        - $ref: '#/components/parameters/loanId'
+      responses:
+        '200':
+          description: Loan facility details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanFacility'
+    put:
+      tags: [LoanFacilities]
+      summary: Update loan facility
+      parameters:
+        - $ref: '#/components/parameters/loanId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoanFacilityUpdateRequest'
+      responses:
+        '200':
+          description: Loan facility updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanFacility'
+    delete:
+      tags: [LoanFacilities]
+      summary: Delete loan facility
+      parameters:
+        - $ref: '#/components/parameters/loanId'
+      responses:
+        '204':
+          description: Loan facility deleted
+
+  /loan-facilities/{loanId}/schedule:
+    get:
+      tags: [Schedule]
+      summary: List schedule rows for loan
+      parameters:
+        - $ref: '#/components/parameters/loanId'
+      responses:
+        '200':
+          description: Schedule rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ScheduleRow'
+    post:
+      tags: [Schedule]
+      summary: Create schedule row
+      parameters:
+        - $ref: '#/components/parameters/loanId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleRowUpsertRequest'
+      responses:
+        '201':
+          description: Schedule row created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleRow'
+
+  /loan-facilities/{loanId}/schedule/{rowId}:
+    put:
+      tags: [Schedule]
+      summary: Update schedule row
+      parameters:
+        - $ref: '#/components/parameters/loanId'
+        - $ref: '#/components/parameters/rowId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleRowUpsertRequest'
+      responses:
+        '200':
+          description: Schedule row updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleRow'
+    delete:
+      tags: [Schedule]
+      summary: Delete schedule row
+      parameters:
+        - $ref: '#/components/parameters/loanId'
+        - $ref: '#/components/parameters/rowId'
+      responses:
+        '204':
+          description: Schedule row deleted
+
+  /loan-facilities/{loanId}/schedule/import:
+    post:
+      tags: [Schedule]
+      summary: Import schedule rows
+      parameters:
+        - $ref: '#/components/parameters/loanId'
+        - in: query
+          name: mode
+          required: true
+          schema:
+            type: string
+            enum: [overwrite, extend]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleImportRequest'
+      responses:
+        '200':
+          description: Import completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResult'
+
+  /loan-facilities/{loanId}/history:
+    get:
+      tags: [History]
+      summary: List history entries for a loan
+      parameters:
+        - $ref: '#/components/parameters/loanId'
+      responses:
+        '200':
+          description: History entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HistoryEntry'
+
+components:
+  parameters:
+    userId:
+      in: path
+      name: userId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    companyId:
+      in: path
+      name: companyId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    loanId:
+      in: path
+      name: loanId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    rowId:
+      in: path
+      name: rowId
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    AccessUser:
+      type: object
+      required: [id, firstName, lastName, email, role]
+      properties:
+        id:
+          type: string
+          format: uuid
+        firstName:
+          type: string
+          maxLength: 100
+        lastName:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [Editor, Viewer]
+
+    AccessUserCreateRequest:
+      type: object
+      required: [firstName, lastName, email, role]
+      properties:
+        firstName:
+          type: string
+          maxLength: 100
+        lastName:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [Editor, Viewer]
+
+    AccessUserUpdateRequest:
+      allOf:
+        - $ref: '#/components/schemas/AccessUserCreateRequest'
+
+    SsoLoginRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+
+    AuthSession:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: '#/components/schemas/AccessUser'
+
+    Company:
+      type: object
+      required: [id, name, code]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 200
+        code:
+          type: string
+          maxLength: 50
+
+    CompanyCreateRequest:
+      type: object
+      required: [name, code]
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+
+    CompanyUpdateRequest:
+      allOf:
+        - $ref: '#/components/schemas/CompanyCreateRequest'
+
+    LoanFacility:
+      type: object
+      required:
+        - id
+        - name
+        - lenderCompanyId
+        - borrowerCompanyId
+        - agreementDate
+        - currency
+        - annualInterestRate
+        - daysInYear
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        lenderCompanyId:
+          type: string
+          format: uuid
+        borrowerCompanyId:
+          type: string
+          format: uuid
+        agreementDate:
+          type: string
+          format: date
+        currency:
+          type: string
+          enum: [GBP, EUR, USD, YEN]
+        bankAccountNumber:
+          type: string
+          maxLength: 100
+        bankAccountName:
+          type: string
+          maxLength: 200
+        bankAccountCurrency:
+          type: string
+          enum: [GBP, EUR, USD, YEN]
+        bankAccountTypeStatus:
+          type: string
+          maxLength: 100
+        bankIban:
+          type: string
+          maxLength: 100
+        bankIdentifier:
+          type: string
+          maxLength: 100
+        bankName:
+          type: string
+          maxLength: 200
+        bankAddress:
+          type: string
+          maxLength: 500
+        annualInterestRate:
+          type: number
+          format: double
+        daysInYear:
+          type: integer
+          minimum: 1
+          default: 365
+        status:
+          type: string
+          enum: [Active, Repaid]
+
+    LoanFacilityCreateRequest:
+      type: object
+      required:
+        - name
+        - lenderCompanyId
+        - borrowerCompanyId
+        - agreementDate
+        - currency
+        - annualInterestRate
+      properties:
+        name:
+          type: string
+        lenderCompanyId:
+          type: string
+          format: uuid
+        borrowerCompanyId:
+          type: string
+          format: uuid
+        agreementDate:
+          type: string
+          format: date
+        currency:
+          type: string
+          enum: [GBP, EUR, USD, YEN]
+        bankAccountNumber:
+          type: string
+          maxLength: 100
+        bankAccountName:
+          type: string
+          maxLength: 200
+        bankAccountCurrency:
+          type: string
+          enum: [GBP, EUR, USD, YEN]
+        bankAccountTypeStatus:
+          type: string
+          maxLength: 100
+        bankIban:
+          type: string
+          maxLength: 100
+        bankIdentifier:
+          type: string
+          maxLength: 100
+        bankName:
+          type: string
+          maxLength: 200
+        bankAddress:
+          type: string
+          maxLength: 500
+        annualInterestRate:
+          type: number
+          format: double
+        daysInYear:
+          type: integer
+          minimum: 1
+          default: 365
+        status:
+          type: string
+          enum: [Active, Repaid]
+
+    LoanFacilityUpdateRequest:
+      allOf:
+        - $ref: '#/components/schemas/LoanFacilityCreateRequest'
+
+    ScheduleRow:
+      type: object
+      required:
+        - id
+        - loanFacilityId
+        - rowIndex
+        - startDate
+        - endDate
+        - days
+        - drawDown
+        - repayment
+        - principal
+        - cumulativePrincipal
+        - interest
+        - cumulativeInterest
+        - total
+        - fees
+      properties:
+        id:
+          type: string
+          format: uuid
+        loanFacilityId:
+          type: string
+          format: uuid
+        rowIndex:
+          type: integer
+          minimum: 1
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        bankTransactionDate:
+          type: string
+          format: date
+          nullable: true
+        transactionDetail:
+          type: string
+          nullable: true
+        bankLedgerBalance:
+          type: number
+          format: double
+          nullable: true
+        days:
+          type: integer
+          minimum: 0
+        drawDown:
+          type: number
+          format: double
+        repayment:
+          type: number
+          format: double
+        principal:
+          type: number
+          format: double
+        cumulativePrincipal:
+          type: number
+          format: double
+        interest:
+          type: number
+          format: double
+        cumulativeInterest:
+          type: number
+          format: double
+        total:
+          type: number
+          format: double
+        fees:
+          type: number
+          format: double
+
+    ScheduleRowUpsertRequest:
+      type: object
+      required: [startDate, endDate, drawDown, repayment, fees]
+      properties:
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        bankTransactionDate:
+          type: string
+          format: date
+          nullable: true
+        transactionDetail:
+          type: string
+          nullable: true
+        bankLedgerBalance:
+          type: number
+          format: double
+          nullable: true
+        drawDown:
+          type: number
+          format: double
+        repayment:
+          type: number
+          format: double
+        fees:
+          type: number
+          format: double
+
+    ScheduleImportRequest:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduleRowUpsertRequest'
+
+    ImportResult:
+      type: object
+      required: [mode, importedCount]
+      properties:
+        mode:
+          type: string
+          enum: [overwrite, extend]
+        importedCount:
+          type: integer
+          minimum: 0
+
+    HistoryEntry:
+      type: object
+      required: [id, loanFacilityId, eventType, entityType, eventTimestamp, performedBy]
+      properties:
+        id:
+          type: string
+          format: uuid
+        loanFacilityId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          enum: [create, update, delete, import]
+        entityType:
+          type: string
+          enum: [loan, schedule, company-link]
+        entityId:
+          type: string
+          nullable: true
+        eventTimestamp:
+          type: string
+          format: date-time
+        performedBy:
+          type: string
+        summary:
+          type: string
+        before:
+          type: object
+          additionalProperties: true
+        after:
+          type: object
+          additionalProperties: true
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
