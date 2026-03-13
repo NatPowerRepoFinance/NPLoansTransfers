@@ -10,7 +10,7 @@ import { TrashIcon, MoonIcon, SunIcon, PlusIcon, PencilIcon, ClockIcon } from "@
 import useConfirmDialog from "@/components/confirmDialog";
 import * as XLSX from "xlsx";
 import type { ColDef } from "ag-grid-community";
-import "ag-grid-community/styles/ag-grid.css";
+// import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -807,7 +807,7 @@ export default function Home() {
     setShowScheduleRowModal(true);
   };
 
-  const handleSaveScheduleRow = () => {
+  const handleSaveScheduleRow = async () => {
     if (!selectedLoanFacility) {
       toast.error("Please select a Loan Facility first.");
       return;
@@ -837,35 +837,36 @@ export default function Home() {
       return;
     }
 
-    const newScheduleRow: ScheduleItem = {
-      id: `${Date.now()}`,
-      startDate: scheduleForm.startDate,
-      endDate: scheduleForm.endDate,
-      lenderBankAccount: scheduleForm.lenderBankAccount,
-      borrowerBankAccount: scheduleForm.borrowerBankAccount,
-      annualInterestRate,
-      drawDown,
-      repayment,
-      fees,
-      updatedAt: new Date().toISOString(),
-    };
+    try {
+      const user = ensureEditor();
+      const updatedLoan = await mockApi.createScheduleItem(
+        String(selectedLoanId),
+        {
+          startDate: scheduleForm.startDate,
+          endDate: scheduleForm.endDate,
+          lenderBankAccount: scheduleForm.lenderBankAccount,
+          borrowerBankAccount: scheduleForm.borrowerBankAccount,
+          annualInterestRate,
+          drawDown,
+          repayment,
+          fees,
+        },
+        user,
+      );
 
-    setLoans((prevLoans) =>
-      prevLoans.map((loan) => {
-        if (String(loan.id) !== String(selectedLoanId)) {
-          return loan;
-        }
+      setLoans((prevLoans) =>
+        prevLoans.map((loan) =>
+          String(loan.id) === String(updatedLoan.id) ? updatedLoan : loan
+        )
+      );
 
-        return {
-          ...loan,
-          schedule: [...(loan.schedule ?? []), newScheduleRow],
-          updatedAt: new Date().toISOString(),
-        };
-      })
-    );
-
-    setShowScheduleRowModal(false);
-    toast.success("Schedule row added successfully.");
+      setShowScheduleRowModal(false);
+      toast.success("Schedule row added successfully.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to add schedule row."
+      );
+    }
   };
 
  const openImportScheduleModal = () => {

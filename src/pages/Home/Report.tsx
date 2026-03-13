@@ -396,43 +396,45 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
       }`}
     >
       <div className={`rounded-lg p-8 ${isDarkMode ? "bg-gray-800" : "bg-gray-50"}`}>
-        <div className="flex items-center justify-end gap-2 mb-4">
-          <button
-            type="button"
-            onClick={exportReportToExcel}
-            className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
-              isDarkMode
-                ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
-                : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
-            }`}
-          >
-            Export Excel
-          </button>
-          <button
-            type="button"
-            onClick={exportReportToPDF}
-            className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
-              isDarkMode
-                ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
-                : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
-            }`}
-          >
-            Export PDF
-          </button>
-          <button
-            type="button"
-            onClick={exportReportToPPT}
-            className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
-              isDarkMode
-                ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
-                : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
-            }`}
-          >
-            Export PPT
-          </button>
-        </div>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-2xl font-semibold">Country Summary Report</h2>
 
-        <h2 className="text-2xl font-semibold mb-4">Country Summary Report</h2>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={exportReportToExcel}
+              className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
+                isDarkMode
+                  ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
+                  : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
+              }`}
+            >
+              Export Excel
+            </button>
+            <button
+              type="button"
+              onClick={exportReportToPDF}
+              className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
+                isDarkMode
+                  ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
+                  : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
+              }`}
+            >
+              Export PDF
+            </button>
+            <button
+              type="button"
+              onClick={exportReportToPPT}
+              className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
+                isDarkMode
+                  ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
+                  : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
+              }`}
+            >
+              Export PPT
+            </button>
+          </div>
+        </div>
 
         <div className={`overflow-x-auto rounded-lg border ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
           <table className="w-full">
