@@ -9,6 +9,12 @@ type ApiEnvelope<T> = {
 };
 
 type SsoLoginResponse = {
+  id?: number;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  role?: string;
+  country?: string;
   accessToken?: string;
   refreshToken?: string;
   access_token?: string;

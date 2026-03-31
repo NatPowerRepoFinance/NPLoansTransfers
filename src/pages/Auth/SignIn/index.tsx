@@ -75,6 +75,10 @@ const AuthLogin = () => {
               setRefreshToken(refreshToken);
             }
             localStorage.setItem("poLoginTime", Date.now().toString());
+            localStorage.setItem("user_first_name", String(result.data.firstName ?? ""));
+            localStorage.setItem("user_last_name", String(result.data.lastName ?? ""));
+            localStorage.setItem("user_role", String(result.data.role ?? ""));
+            localStorage.setItem("user_country", String(result.data.country ?? ""));
 
             // Keep existing admin flag behavior, but route to home when poAccessToken is available.
             if (isAdminIntent) {

@@ -829,6 +829,7 @@ export default function Home() {
   const canEdit =
     currentAccessUser?.role === "Admin" || currentAccessUser?.role === "Editor";
   const canDelete = currentAccessUser?.role === "Admin";
+  const isAdminUser = currentAccessUser?.role === "Admin";
 
   const formatDate = (value?: string) => {
     if (!value) return "-";
@@ -1393,6 +1394,12 @@ export default function Home() {
       setSelectedLoanId(fallbackId);
     }
   }, [showActiveOnly, visibleLoans, selectedLoanId]);
+
+  useEffect(() => {
+    if (activeTab === "admin" && !isAdminUser) {
+      setActiveTab("loan-facility");
+    }
+  }, [activeTab, isAdminUser]);
 
 
   
@@ -1972,20 +1979,22 @@ export default function Home() {
           }`}
         >
           
-          <button
-            onClick={() => setActiveTab("admin")}
-            className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
-              activeTab === "admin"
-                ? isDarkMode
-                  ? "bg-indigo-500/20 text-indigo-300 shadow-inner"
-                  : "bg-indigo-50 text-indigo-700 shadow-sm"
-                : isDarkMode
-                ? "text-gray-400 hover:text-gray-200 hover:bg-white/5"
-                : "text-gray-600 hover:text-gray-800 hover:bg-slate-50"
-            }`}
-          >
-            Admin
-          </button>
+          {isAdminUser && (
+            <button
+              onClick={() => setActiveTab("admin")}
+              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+                activeTab === "admin"
+                  ? isDarkMode
+                    ? "bg-indigo-500/20 text-indigo-300 shadow-inner"
+                    : "bg-indigo-50 text-indigo-700 shadow-sm"
+                  : isDarkMode
+                  ? "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+                  : "text-gray-600 hover:text-gray-800 hover:bg-slate-50"
+              }`}
+            >
+              Admin
+            </button>
+          )}
 
           <button
             onClick={() => setActiveTab("loan-facility")}
@@ -2076,7 +2085,7 @@ export default function Home() {
         )}
 
         {/* Admin Tab */}
-        {activeTab === "admin" && (
+        {activeTab === "admin" && isAdminUser && (
           <div
             className={`rounded-xl border shadow-sm p-5 sm:p-6 ${
               isDarkMode ? "bg-gray-900 border-gray-700" : "bg-white border-gray-200"

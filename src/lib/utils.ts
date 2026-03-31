@@ -149,6 +149,15 @@ export const getUserRole = (): string | undefined => {
 };
 
 export const getUserInitials = (): string | undefined => {
+  const storedFirstName = localStorage.getItem("user_first_name") || "";
+  const storedLastName = localStorage.getItem("user_last_name") || "";
+  if (storedFirstName || storedLastName) {
+    const first = storedFirstName.trim().charAt(0).toUpperCase();
+    const last = storedLastName.trim().charAt(0).toUpperCase();
+    const initials = `${first}${last}`.trim();
+    return initials || undefined;
+  }
+
   const token = localStorage.getItem("poAccessToken");
   if (!token) return undefined;
 
@@ -163,6 +172,13 @@ export const getUserInitials = (): string | undefined => {
 };
 
 export const getUserFullName = (): string | undefined => {
+  const storedFirstName = localStorage.getItem("user_first_name") || "";
+  const storedLastName = localStorage.getItem("user_last_name") || "";
+  if (storedFirstName || storedLastName) {
+    const fullName = `${storedFirstName} ${storedLastName}`.trim();
+    return fullName || undefined;
+  }
+
   const token = localStorage.getItem("poAccessToken");
   if (!token) return undefined;
 
