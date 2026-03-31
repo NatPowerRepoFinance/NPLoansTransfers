@@ -213,9 +213,9 @@ export default function Home() {
   });
   const scheduleImportInputRef = useRef<HTMLInputElement | null>(null);
   const companyHeaderButtonClass =
-    "flex items-center justify-center gap-1.5 h-8 px-3 min-w-[130px] rounded-lg text-xs font-medium transition bg-[#1d2636] hover:bg-[#27354d] text-white";
+    "flex items-center justify-center gap-1.5 h-9 px-3.5 min-w-[130px] rounded-xl text-xs font-semibold transition-all shadow-sm border border-transparent bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white";
   const userHeaderButtonClass =
-    "flex items-center justify-center gap-1.5 h-8 px-3 min-w-[130px] rounded-lg text-xs font-medium transition bg-[#1d2636] hover:bg-[#27354d] text-white";
+    "flex items-center justify-center gap-1.5 h-9 px-3.5 min-w-[130px] rounded-xl text-xs font-semibold transition-all shadow-sm border border-transparent bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white";
 
 
   useEffect(() => {
@@ -1710,6 +1710,13 @@ export default function Home() {
       return;
     }
 
+    const selectedLoan = loans.find(
+      (loan) => String(loan.id) === String(selectedLoanId),
+    );
+    if (!selectedLoan || (Array.isArray(selectedLoan.schedule) && selectedLoan.schedule.length > 0)) {
+      return;
+    }
+
     let isCancelled = false;
 
     getLoanFacilitySchedule(poAccessToken, String(selectedLoanId))
@@ -1738,7 +1745,7 @@ export default function Home() {
     return () => {
       isCancelled = true;
     };
-  }, [selectedLoanId]);
+  }, [selectedLoanId, loans]);
 
 
   const handleSaveLoanFacility = async () => {
@@ -1906,16 +1913,33 @@ export default function Home() {
 
   return (
     <div
-      className={`relative w-full ${isDarkMode ? "bg-[#111827]" : "bg-[#F9FAFB]"}`}
+      className={`relative min-h-screen w-full ${
+        isDarkMode
+          ? "bg-[radial-gradient(circle_at_top,_#1f2a44_0%,_#0f172a_45%,_#0b1020_100%)]"
+          : "bg-[radial-gradient(circle_at_top,_#eef2ff_0%,_#f8fafc_45%,_#eef2f7_100%)]"
+      }`}
     >
-      <div className={`5xl:mx-auto 5xl:w-full h-full px-5 sm:px-10 py-5 ${isDarkMode ? "text-white" : "text-black"}`}>
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div
-          className={`flex flex-wrap justify-between items-center mb-5 gap-4
+          className={`absolute -top-24 -left-20 h-72 w-72 rounded-full blur-3xl ${
+            isDarkMode ? "bg-indigo-500/20" : "bg-indigo-300/40"
+          }`}
+        />
+        <div
+          className={`absolute top-1/3 -right-24 h-80 w-80 rounded-full blur-3xl ${
+            isDarkMode ? "bg-cyan-500/10" : "bg-cyan-200/50"
+          }`}
+        />
+      </div>
+      <div className={`5xl:mx-auto 5xl:w-full h-full px-5 sm:px-10 py-6 ${isDarkMode ? "text-white" : "text-black"}`}>
+        <div
+          className={`flex flex-wrap justify-between items-center mb-6 gap-4 rounded-2xl border px-4 py-3 shadow-sm backdrop-blur
   ${erpIframe || isDarkMode ? "text-white" : "text-black"}
+  ${isDarkMode ? "border-white/10 bg-white/5" : "border-slate-200/80 bg-white/70"}
   ${erpIframe && sidebarCollapsed ? "ml-10" : ""}
 `}
         >
-          <h4>Loans and Transfers Management Board</h4>
+          <h4 className="text-lg font-semibold tracking-tight">Loans and Transfers Management Board</h4>
           <div className="flex-wrap inline-flex gap-1 sm:gap-3" role="group">
             {/* { role === "Super Admin" && (
                             <a href="/auth?admin=1" className="w-fit px-4 py-2 text-sm font-medium text-white bg-[#1D2636] border border-[#1D2636] rounded-xl focus:z-10 hover:opacity-90 hover:shadow-[0_8px_9px_-4px_rgba(51,45,45,0.2),0_4px_18px_0_rgba(51,45,45,0.1)] focus:shadow-[0_8px_9px_-4px_rgba(51,45,45,0.2),0_4px_18px_0_rgba(51,45,45,0.1)] active:bg-white active:text-black active:shadow-[0_8px_9px_-4px_rgba(51,45,45,0.2),0_4px_18px_0_rgba(51,45,45,0.1)] transition duration-150 ease-in-out focus:outline-none focus:ring-0">
@@ -1942,18 +1966,22 @@ export default function Home() {
         </div>
 
         {/* Tabs */}
-        <div className={`flex gap-2 mb-5 border-b ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
+        <div
+          className={`mb-5 inline-flex gap-2 rounded-xl border p-1 ${
+            isDarkMode ? "border-gray-700/80 bg-gray-800/70" : "border-gray-200 bg-white/80"
+          }`}
+        >
           
           <button
             onClick={() => setActiveTab("admin")}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
               activeTab === "admin"
                 ? isDarkMode
-                  ? "border-indigo-500 text-indigo-400"
-                  : "border-indigo-600 text-indigo-600"
+                  ? "bg-indigo-500/20 text-indigo-300 shadow-inner"
+                  : "bg-indigo-50 text-indigo-700 shadow-sm"
                 : isDarkMode
-                ? "border-transparent text-gray-400 hover:text-gray-300"
-                : "border-transparent text-gray-600 hover:text-gray-700"
+                ? "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+                : "text-gray-600 hover:text-gray-800 hover:bg-slate-50"
             }`}
           >
             Admin
@@ -1961,14 +1989,14 @@ export default function Home() {
 
           <button
             onClick={() => setActiveTab("loan-facility")}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
               activeTab === "loan-facility"
                 ? isDarkMode
-                  ? "border-indigo-500 text-indigo-400"
-                  : "border-indigo-600 text-indigo-600"
+                  ? "bg-indigo-500/20 text-indigo-300 shadow-inner"
+                  : "bg-indigo-50 text-indigo-700 shadow-sm"
                 : isDarkMode
-                ? "border-transparent text-gray-400 hover:text-gray-300"
-                : "border-transparent text-gray-600 hover:text-gray-700"
+                ? "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+                : "text-gray-600 hover:text-gray-800 hover:bg-slate-50"
             }`}
           >
             Loan Facility
@@ -1976,14 +2004,14 @@ export default function Home() {
 
           <button
             onClick={() => setActiveTab("report")}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
               activeTab === "report"
                 ? isDarkMode
-                  ? "border-indigo-500 text-indigo-400"
-                  : "border-indigo-600 text-indigo-600"
+                  ? "bg-indigo-500/20 text-indigo-300 shadow-inner"
+                  : "bg-indigo-50 text-indigo-700 shadow-sm"
                 : isDarkMode
-                ? "border-transparent text-gray-400 hover:text-gray-300"
-                : "border-transparent text-gray-600 hover:text-gray-700"
+                ? "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+                : "text-gray-600 hover:text-gray-800 hover:bg-slate-50"
             }`}
           >
             Report
@@ -2172,13 +2200,13 @@ export default function Home() {
               )}
 
               {/* Table */}
-              <div className={`overflow-x-auto rounded-lg border ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
-                <table className="w-full">
+              <div className={`overflow-x-auto rounded-xl border shadow-sm ${isDarkMode ? "border-gray-700/80 bg-gray-900/30" : "border-gray-200 bg-white"}`}>
+                <table className="w-full text-sm [border-collapse:separate] [border-spacing:0] [&_th]:tracking-wide [&_th]:uppercase [&_th]:text-[11px] [&_th]:font-bold [&_td]:align-middle [&_th]:border [&_td]:border [&_th]:border-slate-300/40 [&_td]:border-slate-300/30">
                   <thead
                     className={`${
                       isDarkMode
-                        ? "bg-gray-700 border-gray-600"
-                        : "bg-gray-200 border-gray-300"
+                        ? "bg-gray-700/80 border-gray-600"
+                        : "bg-slate-100 border-gray-300"
                     } border-b`}
                   >
                     <tr>
@@ -2556,7 +2584,7 @@ export default function Home() {
                   </div>
 
                   <div className={`rounded-lg border overflow-hidden ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
-                    <table className="w-full">
+                    <table className="w-full text-sm [border-collapse:separate] [border-spacing:0] [&_th]:tracking-wide [&_th]:uppercase [&_th]:text-[11px] [&_th]:font-bold [&_td]:align-middle [&_th]:border [&_td]:border [&_th]:border-slate-300/40 [&_td]:border-slate-300/30">
                       <thead className={`${isDarkMode ? "bg-gray-700" : "bg-gray-100"}`}>
                         <tr>
                           <th className="px-4 py-3 text-left text-sm">Time</th>
@@ -2606,13 +2634,13 @@ export default function Home() {
                 </button>
               </div>
 
-              <div className={`overflow-x-auto rounded-lg border ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
-                <table className="w-full">
+              <div className={`overflow-x-auto rounded-xl border shadow-sm ${isDarkMode ? "border-gray-700/80 bg-gray-900/30" : "border-gray-200 bg-white"}`}>
+                <table className="w-full text-sm [border-collapse:separate] [border-spacing:0] [&_th]:tracking-wide [&_th]:uppercase [&_th]:text-[11px] [&_th]:font-bold [&_td]:align-middle [&_th]:border [&_td]:border [&_th]:border-slate-300/40 [&_td]:border-slate-300/30">
                   <thead
                     className={`${
                       isDarkMode
-                        ? "bg-gray-700 border-gray-600"
-                        : "bg-gray-200 border-gray-300"
+                        ? "bg-gray-700/80 border-gray-600"
+                        : "bg-slate-100 border-gray-300"
                     } border-b`}
                   >
                     <tr>
@@ -2915,13 +2943,13 @@ export default function Home() {
               )}
 
               {/* Users Table */}
-              <div className={`overflow-x-auto rounded-lg border ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
-                <table className="w-full">
+              <div className={`overflow-x-auto rounded-xl border shadow-sm ${isDarkMode ? "border-gray-700/80 bg-gray-900/30" : "border-gray-200 bg-white"}`}>
+                <table className="w-full text-sm [border-collapse:separate] [border-spacing:0] [&_th]:tracking-wide [&_th]:uppercase [&_th]:text-[11px] [&_th]:font-bold [&_td]:align-middle [&_th]:border [&_td]:border [&_th]:border-slate-300/40 [&_td]:border-slate-300/30">
                   <thead
                     className={`${
                       isDarkMode
-                        ? "bg-gray-700 border-gray-600"
-                        : "bg-gray-200 border-gray-300"
+                        ? "bg-gray-700/80 border-gray-600"
+                        : "bg-slate-100 border-gray-300"
                     } border-b`}
                   >
                     <tr>
@@ -3080,7 +3108,7 @@ export default function Home() {
                   </div>
 
                   <div className={`rounded-lg border overflow-hidden ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
-                    <table className="w-full">
+                    <table className="w-full text-sm [border-collapse:separate] [border-spacing:0] [&_th]:tracking-wide [&_th]:uppercase [&_th]:text-[11px] [&_th]:font-bold [&_td]:align-middle [&_th]:border [&_td]:border [&_th]:border-slate-300/40 [&_td]:border-slate-300/30">
                       <thead className={`${isDarkMode ? "bg-gray-700" : "bg-gray-100"}`}>
                         <tr>
                           <th className="px-4 py-3 text-left text-sm">Time</th>

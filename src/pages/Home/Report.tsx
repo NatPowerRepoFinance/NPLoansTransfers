@@ -229,6 +229,18 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
   const loanDetailSummary =
     apiLoanDetailSummary.length > 0 ? apiLoanDetailSummary : computedLoanDetailSummary;
 
+  const reportKpis = useMemo(() => {
+    return countrySummary.reduce(
+      (acc, row) => ({
+        countries: acc.countries + 1,
+        cumulativeInterest: acc.cumulativeInterest + Number(row.cumulativeInterest || 0),
+        cumulativePrincipal: acc.cumulativePrincipal + Number(row.cumulativePrincipal || 0),
+        total: acc.total + Number(row.total || 0),
+      }),
+      { countries: 0, cumulativeInterest: 0, cumulativePrincipal: 0, total: 0 },
+    );
+  }, [countrySummary]);
+
   const countryCoordinates = useMemo<Record<string, [number, number]>>(
     () => ({
       italy: [12.5674, 41.8719],
@@ -447,19 +459,19 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
 
   return (
     <div
-      className={`rounded-xl border shadow-sm p-5 sm:p-6 ${
-        isDarkMode ? "bg-gray-900 border-gray-700" : "bg-white border-gray-200"
+      className={`rounded-2xl border p-5 sm:p-6 shadow-[0_10px_35px_rgba(2,6,23,0.12)] ${
+        isDarkMode ? "bg-gray-900/80 border-gray-700/80 backdrop-blur" : "bg-white/90 border-gray-200"
       }`}
     >
-      <div className={`rounded-lg p-8 ${isDarkMode ? "bg-gray-800" : "bg-gray-50"}`}>
+      <div className={`rounded-2xl p-8 ${isDarkMode ? "bg-gray-800/90" : "bg-gray-50/90"}`}>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-2xl font-semibold">Country Summary Report</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Country Summary Report</h2>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={exportReportToExcel}
-              className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
+              className={`px-3 py-2 rounded-lg text-sm font-semibold border transition shadow-sm ${
                 isDarkMode
                   ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
                   : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
@@ -470,7 +482,7 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
             <button
               type="button"
               onClick={exportReportToPDF}
-              className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
+              className={`px-3 py-2 rounded-lg text-sm font-semibold border transition shadow-sm ${
                 isDarkMode
                   ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
                   : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
@@ -481,7 +493,7 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
             <button
               type="button"
               onClick={exportReportToPPT}
-              className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
+              className={`px-3 py-2 rounded-lg text-sm font-semibold border transition shadow-sm ${
                 isDarkMode
                   ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
                   : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
@@ -492,9 +504,28 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
           </div>
         </div>
 
-        <div className={`overflow-x-auto rounded-lg border ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
-          <table className="w-full">
-            <thead className={`${isDarkMode ? "bg-gray-700" : "bg-gray-200"}`}>
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          <div className={`rounded-xl border p-4 ${isDarkMode ? "border-indigo-500/30 bg-indigo-500/10" : "border-indigo-100 bg-indigo-50"}`}>
+            <p className={`text-xs font-semibold uppercase tracking-wide ${isDarkMode ? "text-indigo-200" : "text-indigo-600"}`}>Countries</p>
+            <p className="mt-2 text-2xl font-bold">{reportKpis.countries}</p>
+          </div>
+          <div className={`rounded-xl border p-4 ${isDarkMode ? "border-cyan-500/30 bg-cyan-500/10" : "border-cyan-100 bg-cyan-50"}`}>
+            <p className={`text-xs font-semibold uppercase tracking-wide ${isDarkMode ? "text-cyan-200" : "text-cyan-700"}`}>Cumulative Interest</p>
+            <p className="mt-2 text-2xl font-bold">{formatCurrency(reportKpis.cumulativeInterest)}</p>
+          </div>
+          <div className={`rounded-xl border p-4 ${isDarkMode ? "border-emerald-500/30 bg-emerald-500/10" : "border-emerald-100 bg-emerald-50"}`}>
+            <p className={`text-xs font-semibold uppercase tracking-wide ${isDarkMode ? "text-emerald-200" : "text-emerald-700"}`}>Cumulative Principal</p>
+            <p className="mt-2 text-2xl font-bold">{formatCurrency(reportKpis.cumulativePrincipal)}</p>
+          </div>
+          <div className={`rounded-xl border p-4 ${isDarkMode ? "border-violet-500/30 bg-violet-500/10" : "border-violet-100 bg-violet-50"}`}>
+            <p className={`text-xs font-semibold uppercase tracking-wide ${isDarkMode ? "text-violet-200" : "text-violet-700"}`}>Total Exposure</p>
+            <p className="mt-2 text-2xl font-bold">{formatCurrency(reportKpis.total)}</p>
+          </div>
+        </div>
+
+        <div className={`overflow-x-auto rounded-xl border shadow-sm ${isDarkMode ? "border-gray-700/80 bg-gray-900/40" : "border-gray-200 bg-white"}`}>
+          <table className="w-full text-sm [border-collapse:separate] [border-spacing:0] [&_th]:tracking-wide [&_th]:uppercase [&_th]:text-[11px] [&_th]:font-bold [&_td]:align-middle [&_th]:border [&_td]:border [&_th]:border-slate-300/40 [&_td]:border-slate-300/30">
+            <thead className={`${isDarkMode ? "bg-gray-700/80" : "bg-slate-100"}`}>
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-semibold">Country</th>
                 <th className="px-6 py-3 text-left text-sm font-semibold">Cumulative Interest</th>
@@ -518,7 +549,7 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
                 countrySummary.map((row) => (
                   <tr
                     key={row.country}
-                    className={`border-t ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}
+                    className={`border-t transition-colors ${isDarkMode ? "border-gray-700 hover:bg-white/5" : "border-gray-200 hover:bg-slate-50"}`}
                   >
                     <td className="px-6 py-4 text-sm">{row.country}</td>
                     <td className="px-6 py-4 text-sm">{formatCurrency(row.cumulativeInterest)}</td>
@@ -545,12 +576,12 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
         <div className="mt-6">
           <h3 className="text-lg font-semibold mb-3">Loan Detail Summary By Country</h3>
           <div
-            className={`overflow-x-auto rounded-lg border ${
+            className={`overflow-x-auto rounded-xl border shadow-sm ${
               isDarkMode ? "border-gray-700" : "border-gray-200"
             }`}
           >
-            <table className="w-full">
-              <thead className={`${isDarkMode ? "bg-gray-700" : "bg-gray-200"}`}>
+            <table className="w-full text-sm [border-collapse:separate] [border-spacing:0] [&_th]:tracking-wide [&_th]:uppercase [&_th]:text-[11px] [&_th]:font-bold [&_td]:align-middle [&_th]:border [&_td]:border [&_th]:border-slate-300/40 [&_td]:border-slate-300/30">
+              <thead className={`${isDarkMode ? "bg-gray-700/80" : "bg-slate-100"}`}>
                 <tr>
                   <th className="px-6 py-3 text-left text-sm font-semibold">Country</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold">Loan Facility</th>
@@ -577,7 +608,7 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
                   loanDetailSummary.map((row, index) => (
                     <tr
                       key={`${row.country}-${row.loanFacility}-${index}`}
-                      className={`border-t ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}
+                      className={`border-t transition-colors ${isDarkMode ? "border-gray-700 hover:bg-white/5" : "border-gray-200 hover:bg-slate-50"}`}
                     >
                       <td className="px-6 py-4 text-sm">{row.country}</td>
                       <td className="px-6 py-4 text-sm">{row.loanFacility}</td>

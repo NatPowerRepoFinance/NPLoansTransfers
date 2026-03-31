@@ -140,11 +140,11 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
 
   return (
     <div
-      className={`rounded-xl border shadow-sm p-5 sm:p-6 ${
-        isDarkMode ? "bg-gray-900 border-gray-700" : "bg-white border-gray-200"
+      className={`rounded-2xl border p-5 sm:p-6 shadow-[0_10px_35px_rgba(2,6,23,0.12)] ${
+        isDarkMode ? "bg-gray-900/80 border-gray-700/80 backdrop-blur" : "bg-white/90 border-gray-200"
       }`}
     >
-      <div className={`rounded-lg p-8 ${isDarkMode ? "bg-gray-800" : "bg-gray-50"}`}>
+      <div className={`rounded-2xl p-8 ${isDarkMode ? "bg-gray-800/90" : "bg-gray-50/90"}`}>
         <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between" role="group">
           <Field className="flex flex-wrap items-center gap-1 sm:gap-3 w-full">
             <Label
@@ -156,13 +156,13 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
             <ReactSelect
               theme={(theme) => ({
                 ...theme,
-                borderRadius: 9,
+                borderRadius: 12,
                 colors: {
                   ...theme.colors,
-                  primary: "black",
+                  primary: "#4f46e5",
                 },
               })}
-              className="text-base focus:ring-2 focus:ring-[#1D2636]/20 w-72 rounded-2xl bg-white! z-10"
+              className="text-base w-80 max-w-full z-10"
               classNamePrefix="loan-facility-select"
               name="selectedLoanId"
               options={visibleLoans.map((loan) => ({
@@ -185,69 +185,113 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                   ? {
                       control: (base, state) => ({
                         ...base,
-                        backgroundColor: "#23252A",
-                        borderRadius: "0.75rem",
-                        minHeight: "42px",
-                        borderColor: state.isFocused ? "#1D2636" : base.borderColor,
-                        boxShadow: state.isFocused ? "0 0 0 2px rgba(29,38,54,0.2)" : "none",
-                        "&:hover": { borderColor: "#1D2636" },
+                        backgroundColor: "#1f2937",
+                        borderRadius: "0.9rem",
+                        minHeight: "46px",
+                        borderColor: state.isFocused ? "#818cf8" : "#4b5563",
+                        boxShadow: state.isFocused
+                          ? "0 0 0 3px rgba(129,140,248,0.22), 0 6px 16px rgba(15,23,42,0.25)"
+                          : "0 2px 8px rgba(2,6,23,0.18)",
+                        transition: "all 120ms ease",
+                        "&:hover": { borderColor: "#818cf8" },
                       }),
                       valueContainer: (base) => ({
                         ...base,
-                        backgroundColor: "#23252A",
+                        backgroundColor: "#1f2937",
                         color: "#fff",
+                        paddingLeft: "0.55rem",
+                        paddingRight: "0.35rem",
                       }),
                       input: (base) => ({ ...base, color: "#fff" }),
-                      singleValue: (base) => ({ ...base, color: "#fff" }),
-                      placeholder: (base) => ({ ...base, color: "#9CA3AF" }),
+                      singleValue: (base) => ({ ...base, color: "#f9fafb", fontWeight: 600 }),
+                      placeholder: (base) => ({ ...base, color: "#9CA3AF", fontWeight: 500 }),
+                      indicatorSeparator: () => ({ display: "none" }),
+                      dropdownIndicator: (base, state) => ({
+                        ...base,
+                        color: state.isFocused ? "#c7d2fe" : "#9ca3af",
+                        "&:hover": { color: "#e0e7ff" },
+                      }),
                       menu: (base) => ({
                         ...base,
                         zIndex: 30,
-                        backgroundColor: "#23252A",
+                        borderRadius: "0.9rem",
+                        border: "1px solid #4b5563",
+                        boxShadow: "0 12px 30px rgba(2,6,23,0.45)",
+                        backgroundColor: "#111827",
                         color: "#fff",
+                        overflow: "hidden",
                       }),
                       option: (base, state) => ({
                         ...base,
-                        backgroundColor: state.isFocused ? "#3B3F47" : "#23252A",
-                        color: "#fff",
+                        backgroundColor: state.isSelected
+                          ? "#4f46e5"
+                          : state.isFocused
+                          ? "#374151"
+                          : "#111827",
+                        color: "#f9fafb",
                         cursor: "pointer",
+                        fontWeight: state.isSelected ? 700 : 500,
+                        paddingTop: "0.55rem",
+                        paddingBottom: "0.55rem",
                       }),
                     }
                   : {
                       control: (base, state) => ({
                         ...base,
                         backgroundColor: "#ffffff",
-                        borderRadius: "0.75rem",
-                        minHeight: "42px",
-                        borderColor: state.isFocused ? "#4f46e5" : "#e5e7eb",
-                        boxShadow: state.isFocused ? "0 0 0 2px rgba(79,70,229,0.2)" : "none",
+                        borderRadius: "0.9rem",
+                        minHeight: "46px",
+                        borderColor: state.isFocused ? "#6366f1" : "#d1d5db",
+                        boxShadow: state.isFocused
+                          ? "0 0 0 3px rgba(99,102,241,0.16), 0 8px 18px rgba(15,23,42,0.08)"
+                          : "0 1px 3px rgba(15,23,42,0.08)",
+                        transition: "all 120ms ease",
                         "&:hover": { borderColor: "#4f46e5" },
                       }),
                       valueContainer: (base) => ({
                         ...base,
                         backgroundColor: "#ffffff",
                         color: "#000",
+                        paddingLeft: "0.55rem",
+                        paddingRight: "0.35rem",
                       }),
                       input: (base) => ({ ...base, color: "#000" }),
-                      singleValue: (base) => ({ ...base, color: "#000" }),
-                      placeholder: (base) => ({ ...base, color: "#6b7280" }),
+                      singleValue: (base) => ({ ...base, color: "#0f172a", fontWeight: 600 }),
+                      placeholder: (base) => ({ ...base, color: "#6b7280", fontWeight: 500 }),
+                      indicatorSeparator: () => ({ display: "none" }),
+                      dropdownIndicator: (base, state) => ({
+                        ...base,
+                        color: state.isFocused ? "#4f46e5" : "#64748b",
+                        "&:hover": { color: "#4f46e5" },
+                      }),
                       menu: (base) => ({
                         ...base,
                         zIndex: 30,
+                        borderRadius: "0.9rem",
+                        border: "1px solid #e2e8f0",
+                        boxShadow: "0 12px 28px rgba(15,23,42,0.14)",
                         backgroundColor: "#ffffff",
                         color: "#000",
+                        overflow: "hidden",
                       }),
                       option: (base, state) => ({
                         ...base,
-                        backgroundColor: state.isFocused ? "#f3f4f6" : "#ffffff",
-                        color: "#000",
+                        backgroundColor: state.isSelected
+                          ? "#4f46e5"
+                          : state.isFocused
+                          ? "#eef2ff"
+                          : "#ffffff",
+                        color: state.isSelected ? "#ffffff" : "#111827",
                         cursor: "pointer",
+                        fontWeight: state.isSelected ? 700 : 500,
+                        paddingTop: "0.55rem",
+                        paddingBottom: "0.55rem",
                       }),
                     }
               }
             />
             <label
-              className={`inline-flex items-center gap-2 ml-2 text-sm font-medium ${
+              className={`inline-flex items-center gap-2 ml-2 text-sm font-semibold ${
                 isDarkMode ? "text-gray-200" : "text-gray-700"
               }`}
             >
@@ -262,10 +306,10 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
             <button
               type="button"
               onClick={handleNewLoanFacility}
-              className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
+              className={`px-3.5 py-2 rounded-xl text-sm font-semibold border transition-all shadow-sm ${
                 isDarkMode
-                  ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
-                  : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
+                  ? "bg-gradient-to-r from-indigo-600 to-blue-600 border-transparent text-white hover:from-indigo-500 hover:to-blue-500"
+                  : "bg-gradient-to-r from-indigo-600 to-blue-600 border-transparent text-white hover:from-indigo-500 hover:to-blue-500"
               }`}
             >
               New
@@ -273,10 +317,10 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
             <button
               type="button"
               onClick={handleEditLoanFacility}
-              className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
+              className={`px-3.5 py-2 rounded-xl text-sm font-semibold border transition-all shadow-sm hover:-translate-y-[1px] ${
                 isDarkMode
-                  ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
-                  : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
+                  ? "bg-indigo-500/15 border-indigo-400/30 text-indigo-200 hover:bg-indigo-500/25"
+                  : "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
               }`}
             >
               Edit
@@ -284,10 +328,10 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
             <button
               type="button"
               onClick={handleDeleteLoanFacility}
-              className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
+              className={`px-3.5 py-2 rounded-xl text-sm font-semibold border transition-all shadow-sm hover:-translate-y-[1px] ${
                 isDarkMode
-                  ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
-                  : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
+                  ? "bg-rose-500/15 border-rose-400/30 text-rose-200 hover:bg-rose-500/25"
+                  : "bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100"
               }`}
             >
               Delete
@@ -567,52 +611,54 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                 Please select a Loan Facility to view its details.
               </p>
             )}
+            <div className="mb-4 flex flex-wrap gap-2">
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${isDarkMode ? "bg-indigo-500/20 text-indigo-200" : "bg-indigo-50 text-indigo-700"}`}>
+                Status: {loanFacilityFieldValue(["status"], "-")}
+              </span>
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${isDarkMode ? "bg-emerald-500/20 text-emerald-200" : "bg-emerald-50 text-emerald-700"}`}>
+                Currency: {loanFacilityFieldValue(["currency"], "-")}
+              </span>
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${isDarkMode ? "bg-cyan-500/20 text-cyan-200" : "bg-cyan-50 text-cyan-700"}`}>
+                Interest: {loanFacilityFieldValue(["annualInterestRate", "annual_interest_rate"], "0")}%
+              </span>
+            </div>
             <h3 className="text-xl font-semibold mb-5">
               {loanFacilityFieldValue(["facilityName", "name"], "Loan Facility")}
             </h3>
-            <div className={`rounded-lg border px-4 py-4 overflow-hidden ${isDarkMode ? "border-gray-700 bg-gray-800" : "border-gray-200 bg-gray-50"}`}>
-              <h4 className="text-base font-semibold mb-3">Loan Details</h4>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-3 text-sm">
-                <div>
-                  <span className={`block text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Status</span>
-                  <span>{loanFacilityFieldValue(["status"])}</span>
-                </div>
-                <div>
-                  <span className={`block text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Start Date</span>
-                  <span>{loanFacilityFieldValue(["startDate", "start_date", "agreementDate", "agreement_date"], "-")}</span>
-                </div>
-                <div>
-                  <span className={`block text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Close Date</span>
-                  <span>{loanFacilityFieldValue(["closeDate", "close_date"], "-")}</span>
-                </div>
-                <div>
-                  <span className={`block text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Lender</span>
-                  <span>{loanFacilityFieldValue(["lender", "lenderName"])}</span>
-                </div>
-                <div>
-                  <span className={`block text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Borrower</span>
-                  <span>{loanFacilityFieldValue(["borrower", "borrowerName"])}</span>
-                </div>
-                <div>
-                  <span className={`block text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Agreement Date</span>
-                  <span>{loanFacilityFieldValue(["agreementDate", "agreement_date"], "-")}</span>
-                </div>
-                <div>
-                  <span className={`block text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Currency</span>
-                  <span>{loanFacilityFieldValue(["currency"])}</span>
-                </div>
-                <div>
-                  <span className={`block text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Annual Interest Rate %</span>
-                  <span>{loanFacilityFieldValue(["annualInterestRate", "annual_interest_rate"], "0")}</span>
-                </div>
-                <div>
-                  <span className={`block text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Days in Year</span>
-                  <span>{loanFacilityFieldValue(["daysInYear", "days_in_year"], "365")}</span>
-                </div>
+            <div className={`rounded-xl border px-4 py-4 overflow-hidden shadow-sm ${isDarkMode ? "border-gray-700/80 bg-gray-800/70" : "border-gray-200 bg-white"}`}>
+              <h4 className="text-base font-semibold mb-3 tracking-tight">Loan Details</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 text-sm">
+                {[
+                  ["Status", loanFacilityFieldValue(["status"])],
+                  ["Start Date", loanFacilityFieldValue(["startDate", "start_date", "agreementDate", "agreement_date"], "-")],
+                  ["Close Date", loanFacilityFieldValue(["closeDate", "close_date"], "-")],
+                  ["Lender", loanFacilityFieldValue(["lender", "lenderName"])],
+                  ["Borrower", loanFacilityFieldValue(["borrower", "borrowerName"])],
+                  ["Agreement Date", loanFacilityFieldValue(["agreementDate", "agreement_date"], "-")],
+                  ["Currency", loanFacilityFieldValue(["currency"])],
+                  ["Annual Interest Rate %", loanFacilityFieldValue(["annualInterestRate", "annual_interest_rate"], "0")],
+                  ["Days in Year", loanFacilityFieldValue(["daysInYear", "days_in_year"], "365")],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className={`rounded-lg border px-3 py-2.5 ${
+                      isDarkMode
+                        ? "border-gray-700 bg-gray-900/50"
+                        : "border-slate-200 bg-slate-50"
+                    }`}
+                  >
+                    <span className={`block text-[11px] font-semibold uppercase tracking-wide ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                      {label}
+                    </span>
+                    <span className={`mt-1 block font-semibold ${isDarkMode ? "text-gray-100" : "text-slate-800"}`}>
+                      {value}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className={`mt-6 rounded-lg border p-4 ${isDarkMode ? "border-gray-700 bg-gray-800" : "border-gray-200 bg-gray-50"}`}>
+            <div className={`mt-6 rounded-xl border p-4 shadow-sm ${isDarkMode ? "border-gray-700/80 bg-gray-800/80" : "border-gray-200 bg-white"}`}>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h4 className="text-lg font-semibold">Draw Down Schedule</h4>
                 <div className="flex items-center gap-2">
@@ -640,9 +686,9 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                   </button>
                 </div>
               </div>
-              <div className={`drawdown-schedule-scroll w-full max-w-full overflow-x-auto overflow-y-hidden rounded-lg border ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
+              <div className="drawdown-schedule-scroll w-full max-w-full overflow-x-auto overflow-y-hidden rounded-xl shadow-sm">
                 <div
-                  className={`${isDarkMode ? "ag-theme-alpine-dark" : "ag-theme-alpine"}`}
+                  className={`schedule-grid ${isDarkMode ? "ag-theme-alpine-dark" : "ag-theme-alpine"}`}
                   style={{ width: "100%", height: 360 }}
                 >
                   <AgGridReact
@@ -653,6 +699,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                       sortable: false,
                       resizable: true,
                       filter: false,
+                      flex: 1,
                       minWidth: 110,
                     }}
                     rowHeight={42}

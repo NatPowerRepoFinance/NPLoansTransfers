@@ -67,11 +67,53 @@ body {
   --ag-foreground-color: #ffffff;
 }
 
+.schedule-grid.ag-theme-alpine,
+.schedule-grid.ag-theme-alpine-dark {
+  --ag-border-color: rgba(148, 163, 184, 0.22);
+  --ag-row-border-color: rgba(148, 163, 184, 0.2);
+  --ag-header-column-resize-handle-color: rgba(148, 163, 184, 0.45);
+  --ag-font-family: Inter, system-ui, sans-serif;
+  --ag-font-size: 12px;
+}
+
+.schedule-grid.ag-theme-alpine {
+  --ag-background-color: #ffffff;
+  --ag-foreground-color: #0f172a;
+  --ag-header-background-color: #f8fafc;
+  --ag-header-foreground-color: #334155;
+  --ag-odd-row-background-color: #f8fafc;
+  --ag-row-hover-color: #eef2ff;
+  --ag-selected-row-background-color: #e0e7ff;
+}
+
+.schedule-grid.ag-theme-alpine-dark {
+  --ag-background-color: #0f172a;
+  --ag-foreground-color: #e5e7eb;
+  --ag-header-background-color: #111827;
+  --ag-header-foreground-color: #cbd5e1;
+  --ag-odd-row-background-color: #111827;
+  --ag-row-hover-color: rgba(99, 102, 241, 0.16);
+  --ag-selected-row-background-color: rgba(99, 102, 241, 0.24);
+}
+
+.schedule-grid .ag-header-cell-label {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.schedule-grid .ag-cell {
+  border-right-color: rgba(148, 163, 184, 0.18) !important;
+}
+
+.schedule-grid .ag-root-wrapper {
+  border: none !important;
+}
+
 .drawdown-schedule-scroll {
   display: block;
   width: 100%;
   max-width: 100%;
-  scrollbar-gutter: stable both-edges;
+  scrollbar-gutter: stable;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
@@ -82,7 +124,7 @@ body {
 }
 
 .drawdown-schedule-scroll::-webkit-scrollbar-track {
-  background: #e5e7eb;
+  background: #e2e8f0;
 }
 
 .drawdown-schedule-scroll::-webkit-scrollbar-thumb {
