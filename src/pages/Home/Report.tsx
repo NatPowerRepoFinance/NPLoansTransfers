@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import PptxGenJS from "pptxgenjs";
+import { getCountrySummaryLoansReport, getCountrySummaryReport } from "@/api";
 
 type ReportTabProps = {
   isDarkMode: boolean;
@@ -36,8 +37,22 @@ type ReportTabProps = {
 
 export default function ReportTab({ isDarkMode, loans, companies }: ReportTabProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const [apiCountrySummary, setApiCountrySummary] = useState<
+    Array<{ country: string; cumulativeInterest: number; cumulativePrincipal: number; total: number }>
+  >([]);
+  const [apiLoanDetailSummary, setApiLoanDetailSummary] = useState<
+    Array<{
+      country: string;
+      loanFacility: string;
+      lender: string;
+      borrower: string;
+      cumulativePrincipal: number;
+      cumulativeInterest: number;
+      total: number;
+    }>
+  >([]);
 
-  const countrySummary = useMemo(() => {
+  const computedCountrySummary = useMemo(() => {
     const summary = new Map<
       string,
       { cumulativeInterest: number; cumulativePrincipal: number; total: number }
@@ -105,13 +120,52 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
       .sort((first, second) => first.country.localeCompare(second.country));
   }, [loans, companies]);
 
+  useEffect(() => {
+    const poAccessToken = localStorage.getItem("poAccessToken");
+    if (!poAccessToken) {
+      setApiCountrySummary([]);
+      return;
+    }
+
+    let cancelled = false;
+    getCountrySummaryReport(poAccessToken)
+      .then((rows) => {
+        if (!cancelled) {
+          setApiCountrySummary(rows);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setApiCountrySummary([]);
+        }
+      });
+
+    getCountrySummaryLoansReport(poAccessToken)
+      .then((rows) => {
+        if (!cancelled) {
+          setApiLoanDetailSummary(rows);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setApiLoanDetailSummary([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const countrySummary = apiCountrySummary.length > 0 ? apiCountrySummary : computedCountrySummary;
+
   const formatCurrency = (value: number) =>
     Number(value || 0).toLocaleString("en-GB", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
 
-  const loanDetailSummary = useMemo(() => {
+  const computedLoanDetailSummary = useMemo(() => {
     return loans
       .map((loan) => {
         const lenderCompany = companies.find((company) => company.id === loan.lenderCompanyId);
@@ -172,6 +226,8 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
         return first.country.localeCompare(second.country);
       });
   }, [loans, companies]);
+  const loanDetailSummary =
+    apiLoanDetailSummary.length > 0 ? apiLoanDetailSummary : computedLoanDetailSummary;
 
   const countryCoordinates = useMemo<Record<string, [number, number]>>(
     () => ({

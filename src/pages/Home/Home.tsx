@@ -3,7 +3,6 @@ import type { ITooltipParams } from "ag-grid-community";
 import { Bounce, toast, ToastContainer } from "react-toastify";
 import dummyData from "@/lib/api/dummyRisks.json";
 import {
-  ScheduleItem,
   LoanFacility,
 } from "../../utils/constants";
 import { TrashIcon, MoonIcon, SunIcon, PlusIcon, PencilIcon, ClockIcon } from "@heroicons/react/24/outline";
@@ -18,7 +17,26 @@ import { mockApi } from '../../services/mockApi';
 import type { MockUser } from '../../types';
 import LoanFacilityTab from "./LoanFacility";
 import ReportTab from "./Report";
-import { getLoanFacilities } from "@/api";
+import {
+  createCountry,
+  createCompany,
+  createLoanFacility,
+  createLoanFacilityScheduleRow,
+  createUser,
+  deleteCompany,
+  deleteCountry,
+  deleteUser,
+  getCompanies,
+  getCountries,
+  importLoanFacilitySchedule,
+  getLoanFacilities,
+  getLoanFacilitySchedule,
+  getUsers,
+  updateCountry,
+  updateCompany,
+  updateLoanFacility,
+  updateUser,
+} from "@/api";
 
 
 export interface Company {
@@ -108,7 +126,7 @@ export default function Home() {
       annualInterestRate: 0,
       daysInYear: 365,
   };
-  const [, setIsCreatingLoan] = useState(false);
+  const [isCreatingLoan, setIsCreatingLoan] = useState(false);
   const [selectedLoanId, setSelectedLoanId] = useState<string>('')
   const [loans, setLoans] = useState<LoanFacility[]>([])
 
@@ -293,7 +311,7 @@ export default function Home() {
     setShowModal(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const normalizedBankAccounts = formData.bankAccounts
       .map((item) => item.trim())
       .filter(Boolean);
@@ -310,53 +328,86 @@ export default function Home() {
     }
 
     if (editingId) {
-      const existingCompany = companies.find((c) => c.id === editingId);
-      setCompanies(
-        companies.map((c) =>
-          c.id === editingId
-            ? {
-                ...c,
-                name: formData.name,
-                sapCode: formData.sapCode,
-                type: formData.type,
-                country: formData.country,
-                bankAccounts: normalizedBankAccounts.join(", "),
-              }
-            : c
-        )
-      );
-      addCompanyHistoryEntry(
-        "EDIT",
-        formData.name,
-        `Updated company ${existingCompany?.name || formData.name}`
-      );
-      toast.success("Company updated successfully");
+      try {
+        const poAccessToken = localStorage.getItem("poAccessToken");
+        if (!poAccessToken) {
+          throw new Error("Access token is missing. Please sign in again.");
+        }
+
+        await updateCompany(poAccessToken, editingId, {
+          id: 0,
+          name: formData.name.trim(),
+          code: formData.sapCode.trim(),
+          type: formData.type,
+          country: formData.country,
+          bankAccounts: normalizedBankAccounts.map((accountName, index) => ({
+            id: 0,
+            accountName,
+            rowIndex: index + 1,
+          })),
+        });
+
+        await loadAllData();
+        addCompanyHistoryEntry(
+          "EDIT",
+          formData.name,
+          `Updated company ${formData.name}`
+        );
+        toast.success("Company updated successfully");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to update company";
+        toast.error(message);
+        return;
+      }
     } else {
-      const nextId = companies.length > 0 ? String(Math.max(...companies.map((c) => Number(c.id))) + 1) : "1";
-      const companyToAdd: Company = {
-        id: nextId,
-        name: formData.name,
-        sapCode: formData.sapCode,
-        type: formData.type,
-        country: formData.country,
-        bankAccounts: normalizedBankAccounts.join(", "),
-      };
-      setCompanies([
-        ...companies,
-        companyToAdd,
-      ]);
-      addCompanyHistoryEntry("ADD", companyToAdd.name, `Added company ${companyToAdd.name}`);
-      toast.success("Company added successfully");
+      try {
+        const poAccessToken = localStorage.getItem("poAccessToken");
+        if (!poAccessToken) {
+          throw new Error("Access token is missing. Please sign in again.");
+        }
+
+        await createCompany(poAccessToken, {
+          id: 0,
+          name: formData.name.trim(),
+          code: formData.sapCode.trim(),
+          type: formData.type,
+          country: formData.country,
+          bankAccounts: normalizedBankAccounts.map((accountName, index) => ({
+            id: 0,
+            accountName,
+            rowIndex: index + 1,
+          })),
+        });
+
+        await loadAllData();
+        addCompanyHistoryEntry("ADD", formData.name, `Added company ${formData.name}`);
+        toast.success("Company added successfully");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to create company";
+        toast.error(message);
+        return;
+      }
     }
 
     setShowModal(false);
     setFormData({ name: "", sapCode: "", type: "", country: "", bankAccounts: [""] });
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this company?")) {
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this company?")) {
+      return;
+    }
+
+    try {
+      const poAccessToken = localStorage.getItem("poAccessToken");
+      if (!poAccessToken) {
+        throw new Error("Access token is missing. Please sign in again.");
+      }
+
       const companyToDelete = companies.find((c) => c.id === id);
-      setCompanies(companies.filter((c) => c.id !== id));
+      await deleteCompany(poAccessToken, id);
+      await loadAllData();
+
       if (companyToDelete) {
         addCompanyHistoryEntry(
           "DELETE",
@@ -365,6 +416,9 @@ export default function Home() {
         );
       }
       toast.success("Company deleted successfully");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete company";
+      toast.error(message);
     }
   };
 
@@ -490,50 +544,73 @@ export default function Home() {
     setShowUserModal(true);
   };
 
-  const handleSaveUser = () => {
+  const handleSaveUser = async () => {
     if (!userFormData.firstName.trim() || !userFormData.lastName.trim() || !userFormData.email.trim() || !userFormData.role.trim() || !userFormData.country.trim()) {
       toast.error("Please fill in all fields");
       return;
     }
 
-    if (editingUserId) {
-      const existingUser = users.find((u) => u.id === editingUserId);
-      setUsers(
-        users.map((u) =>
-          u.id === editingUserId ? { ...u, firstName: userFormData.firstName, lastName: userFormData.lastName, email: userFormData.email, role: userFormData.role, country: userFormData.country } : u
-        )
-      );
-      addUserHistoryEntry(
-        "EDIT",
-        `${userFormData.firstName} ${userFormData.lastName}`,
-        `Updated user ${existingUser?.firstName || userFormData.firstName}`
-      );
-      toast.success("User updated successfully");
-    } else {
-      const userToAdd: User = {
-        id: Date.now().toString(),
-        firstName: userFormData.firstName,
-        lastName: userFormData.lastName,
-        email: userFormData.email,
-        role: userFormData.role,
-        country: userFormData.country,
-      };
-      setUsers([
-        ...users,
-        userToAdd,
-      ]);
-      addUserHistoryEntry("ADD", `${userToAdd.firstName} ${userToAdd.lastName}`, `Added user ${userToAdd.firstName} ${userToAdd.lastName}`);
-      toast.success("User added successfully");
-    }
+    try {
+      const poAccessToken = localStorage.getItem("poAccessToken");
+      if (!poAccessToken) {
+        throw new Error("Access token is missing. Please sign in again.");
+      }
 
-    setShowUserModal(false);
-    setUserFormData({ firstName: "", lastName: "", email: "", role: "", country: "" });
+      if (editingUserId) {
+        await updateUser(poAccessToken, editingUserId, {
+          id: Number(editingUserId) || 0,
+          firstName: userFormData.firstName.trim(),
+          lastName: userFormData.lastName.trim(),
+          email: userFormData.email.trim(),
+          role: userFormData.role,
+          country: userFormData.country,
+        });
+        addUserHistoryEntry(
+          "EDIT",
+          `${userFormData.firstName} ${userFormData.lastName}`,
+          `Updated user ${userFormData.firstName}`
+        );
+        toast.success("User updated successfully");
+      } else {
+        await createUser(poAccessToken, {
+          firstName: userFormData.firstName.trim(),
+          lastName: userFormData.lastName.trim(),
+          email: userFormData.email.trim(),
+          role: userFormData.role,
+          country: userFormData.country,
+        });
+        addUserHistoryEntry(
+          "ADD",
+          `${userFormData.firstName} ${userFormData.lastName}`,
+          `Added user ${userFormData.firstName} ${userFormData.lastName}`
+        );
+        toast.success("User added successfully");
+      }
+
+      await loadAllData();
+      setShowUserModal(false);
+      setUserFormData({ firstName: "", lastName: "", email: "", role: "", country: "" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to save user";
+      toast.error(message);
+    }
   };
 
-  const handleDeleteUser = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this user?")) {
+  const handleDeleteUser = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this user?")) {
+      return;
+    }
+
+    try {
+      const poAccessToken = localStorage.getItem("poAccessToken");
+      if (!poAccessToken) {
+        throw new Error("Access token is missing. Please sign in again.");
+      }
+
       const userToDelete = users.find((u) => u.id === id);
-      setUsers(users.filter((u) => u.id !== id));
+      await deleteUser(poAccessToken, id);
+      await loadAllData();
+
       if (userToDelete) {
         addUserHistoryEntry(
           "DELETE",
@@ -542,6 +619,9 @@ export default function Home() {
         );
       }
       toast.success("User deleted successfully");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete user";
+      toast.error(message);
     }
   };
 
@@ -655,7 +735,7 @@ export default function Home() {
     setShowCountryModal(true);
   };
 
-  const handleSaveCountry = () => {
+  const handleSaveCountry = async () => {
     if (!countryFormData.name.trim() || !countryFormData.countryCode.trim()) {
       toast.error("Please fill in all country fields");
       return;
@@ -663,40 +743,52 @@ export default function Home() {
 
     const normalizedCode = countryFormData.countryCode.trim().toUpperCase();
 
-    if (editingCountryId !== null) {
-      setCountries(
-        countries.map((country) =>
-          country.id === editingCountryId
-            ? {
-                ...country,
-                name: countryFormData.name.trim(),
-                countryCode: normalizedCode,
-              }
-            : country
-        )
-      );
-      toast.success("Country updated successfully");
-    } else {
-      const nextId = countries.length > 0 ? Math.max(...countries.map((country) => country.id)) + 1 : 1;
-      setCountries([
-        ...countries,
-        {
-          id: nextId,
-          name: countryFormData.name.trim(),
-          countryCode: normalizedCode,
-        },
-      ]);
-      toast.success("Country added successfully");
-    }
+    try {
+      const poAccessToken = localStorage.getItem("poAccessToken");
+      if (!poAccessToken) {
+        throw new Error("Access token is missing. Please sign in again.");
+      }
 
-    setShowCountryModal(false);
-    setCountryFormData({ name: "", countryCode: "" });
+      if (editingCountryId !== null) {
+        await updateCountry(poAccessToken, editingCountryId, {
+          name: countryFormData.name.trim(),
+          code: normalizedCode,
+        });
+        toast.success("Country updated successfully");
+      } else {
+        await createCountry(poAccessToken, {
+          name: countryFormData.name.trim(),
+          code: normalizedCode,
+        });
+        toast.success("Country added successfully");
+      }
+
+      await loadAllData();
+      setShowCountryModal(false);
+      setCountryFormData({ name: "", countryCode: "" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to save country";
+      toast.error(message);
+    }
   };
 
-  const handleDeleteCountry = (id: number) => {
-    if (window.confirm("Are you sure you want to delete this country?")) {
-      setCountries(countries.filter((country) => country.id !== id));
+  const handleDeleteCountry = async (id: number) => {
+    if (!window.confirm("Are you sure you want to delete this country?")) {
+      return;
+    }
+
+    try {
+      const poAccessToken = localStorage.getItem("poAccessToken");
+      if (!poAccessToken) {
+        throw new Error("Access token is missing. Please sign in again.");
+      }
+
+      await deleteCountry(poAccessToken, id);
+      await loadAllData();
       toast.success("Country deleted successfully");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete country";
+      toast.error(message);
     }
   };
 
@@ -839,29 +931,39 @@ export default function Home() {
     }
 
     try {
-      const user = ensureEditor();
-      const updatedLoan = await mockApi.createScheduleItem(
-        String(selectedLoanId),
-        {
-          startDate: scheduleForm.startDate,
-          endDate: scheduleForm.endDate,
-          lenderBankAccount: scheduleForm.lenderBankAccount,
-          borrowerBankAccount: scheduleForm.borrowerBankAccount,
-          annualInterestRate,
-          drawDown,
-          repayment,
-          fees,
-        },
-        user,
-      );
+      ensureEditor();
+      const poAccessToken = localStorage.getItem("poAccessToken");
+      if (!poAccessToken) {
+        toast.error("Access token is missing. Please sign in again.");
+        return;
+      }
 
+      const loanFacilityId = String(selectedLoanId);
+      const rowIndex = Array.isArray(selectedLoanFacility.schedule)
+        ? selectedLoanFacility.schedule.length
+        : 0;
+
+      await createLoanFacilityScheduleRow(poAccessToken, loanFacilityId, {
+        rowIndex,
+        startDate: scheduleForm.startDate,
+        endDate: scheduleForm.endDate,
+        lenderBankAccount: scheduleForm.lenderBankAccount,
+        borrowerBankAccount: scheduleForm.borrowerBankAccount,
+        annualInterestRatePct: annualInterestRate,
+        drawDown,
+        repayment,
+        fees,
+      });
+
+      const updatedSchedule = await getLoanFacilitySchedule(poAccessToken, loanFacilityId);
       setLoans((prevLoans) =>
         prevLoans.map((loan) =>
-          String(loan.id) === String(updatedLoan.id) ? updatedLoan : loan
-        )
+          String(loan.id) === loanFacilityId ? { ...loan, schedule: updatedSchedule } : loan,
+        ),
       );
 
       setShowScheduleRowModal(false);
+      resetScheduleForm();
       toast.success("Schedule row added successfully.");
     } catch (error) {
       toast.error(
@@ -918,16 +1020,6 @@ export default function Home() {
   };
 
 
-  const readCellValue = (row: Record<string, unknown>, keys: string[]) => {
-    for (const key of keys) {
-      const value = row[key];
-      if (value !== undefined && value !== null && String(value).trim() !== "") {
-        return String(value).trim();
-      }
-    }
-    return "";
-  };
-
   const handleScheduleImportFileChange = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -949,92 +1041,33 @@ export default function Home() {
     }
 
     try {
-      const data = await importScheduleFile.arrayBuffer();
-      const workbook = XLSX.read(data, { type: "array" });
-      const firstSheet = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheet];
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
-        defval: "",
-      });
-
-      const importedRows: ScheduleItem[] = rows
-        .map((row, index) => {
-          const startDate = readCellValue(row, ["Start Date", "startDate", "start_date"]);
-          const endDate = readCellValue(row, ["End Date", "endDate", "end_date"]);
-          const lenderBankAccount = readCellValue(row, [
-            "Lender Bank Account",
-            "lenderBankAccount",
-            "lender_bank_account",
-          ]);
-          const borrowerBankAccount = readCellValue(row, [
-            "Borrower Bank Account",
-            "borrowerBankAccount",
-            "borrower_bank_account",
-          ]);
-
-          const annualInterestRate = Number(
-            readCellValue(row, [
-              "Annual Interest Rate %",
-              "annualInterestRate",
-              "annual_interest_rate",
-            ]) || selectedLoanFacility?.annualInterestRate || 0
-          );
-          const drawDown = Number(
-            readCellValue(row, ["Draw Down", "drawDown", "draw_down"]) || 0
-          );
-          const repayment = Number(
-            readCellValue(row, ["Repayment", "repayment"]) || 0
-          );
-          const fees = Number(readCellValue(row, ["Fees", "fees"]) || 0);
-
-          if (!startDate || !endDate || !lenderBankAccount || !borrowerBankAccount) {
-            return null;
-          }
-
-          return {
-            id: `${Date.now()}-${index}`,
-            startDate,
-            endDate,
-            lenderBankAccount,
-            borrowerBankAccount,
-            annualInterestRate: Number.isNaN(annualInterestRate)
-              ? Number(selectedLoanFacility?.annualInterestRate ?? 0)
-              : annualInterestRate,
-            drawDown: Number.isNaN(drawDown) ? 0 : drawDown,
-            repayment: Number.isNaN(repayment) ? 0 : repayment,
-            fees: Number.isNaN(fees) ? 0 : fees,
-            updatedAt: new Date().toISOString(),
-          } as ScheduleItem;
-        })
-        .filter((row): row is ScheduleItem => row !== null);
-
-      if (importedRows.length === 0) {
-        toast.error("No valid schedule rows found in the selected file.");
-        return;
+      ensureEditor();
+      const poAccessToken = localStorage.getItem("poAccessToken");
+      if (!poAccessToken) {
+        throw new Error("Access token is missing. Please sign in again.");
       }
 
+      const loanFacilityId = String(selectedLoanId);
+      await importLoanFacilitySchedule(
+        poAccessToken,
+        loanFacilityId,
+        importScheduleFile,
+        importScheduleMode,
+      );
+      const updatedSchedule = await getLoanFacilitySchedule(poAccessToken, loanFacilityId);
       setLoans((prevLoans) =>
-        prevLoans.map((loan) => {
-          if (String(loan.id) !== String(selectedLoanId)) {
-            return loan;
-          }
-
-          return {
-            ...loan,
-            schedule:
-              importScheduleMode === "overwrite"
-                ? importedRows
-                : [...(loan.schedule ?? []), ...importedRows],
-            updatedAt: new Date().toISOString(),
-          };
-        })
+        prevLoans.map((loan) =>
+          String(loan.id) === loanFacilityId ? { ...loan, schedule: updatedSchedule } : loan,
+        ),
       );
 
       closeImportScheduleModal();
-      toast.success(`${importedRows.length} schedule row(s) imported successfully.`);
+      toast.success("Schedule imported successfully.");
     } catch (error) {
       console.error("Failed to import schedule file", error);
-      setErrorMessage("Failed to import schedule file.");
+      const message = error instanceof Error ? error.message : "Failed to import schedule file.";
+      setErrorMessage(message);
+      toast.error(message);
     }
   };
 
@@ -1324,6 +1357,10 @@ export default function Home() {
 
 
   useEffect(() => {
+    if (isCreatingLoan) {
+      return;
+    }
+
     if (visibleLoans.length === 0) {
       setSelectedLoanId("");
       return;
@@ -1337,7 +1374,7 @@ export default function Home() {
       const fallbackId = String(visibleLoans[0].id);
       setSelectedLoanId(fallbackId);
     }
-  }, [selectedLoanId, visibleLoans]);
+  }, [isCreatingLoan, selectedLoanId, visibleLoans]);
 
   useEffect(() => {
     if (!showActiveOnly || !selectedLoanId) {
@@ -1579,13 +1616,16 @@ export default function Home() {
 
   const loadAllData = useCallback(async () => {
     const poAccessToken = localStorage.getItem("poAccessToken");
+    if (!poAccessToken) {
+      throw new Error("Access token is missing. Please sign in again.");
+    }
     const loanFacilities = poAccessToken ? await getLoanFacilities(poAccessToken) : [];
 
     const [nextCountries, nextCompanies, nextLoans, nextUsers, nextCompanyHistory, nextUserHistory] = await Promise.all([
-      mockApi.getCountries(),
-      mockApi.getCompanies(),
+      getCountries(poAccessToken),
+      getCompanies(poAccessToken),
       Promise.resolve(loanFacilities),
-      mockApi.getUsers(),
+      getUsers(poAccessToken),
       mockApi.getCompanyHistory(),
       mockApi.getUserHistory(),
     ])
@@ -1664,6 +1704,42 @@ export default function Home() {
     });
   }, [loadAllData]);
 
+  useEffect(() => {
+    const poAccessToken = localStorage.getItem("poAccessToken");
+    if (!poAccessToken || !selectedLoanId) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    getLoanFacilitySchedule(poAccessToken, String(selectedLoanId))
+      .then((scheduleRows) => {
+        if (isCancelled) {
+          return;
+        }
+
+        setLoans((prevLoans) =>
+          prevLoans.map((loan) =>
+            String(loan.id) === String(selectedLoanId)
+              ? { ...loan, schedule: scheduleRows }
+              : loan,
+          ),
+        );
+      })
+      .catch((error) => {
+        if (isCancelled) {
+          return;
+        }
+        const message =
+          error instanceof Error ? error.message : "Failed to load loan facility schedule";
+        setErrorMessage(message);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedLoanId]);
+
 
   const handleSaveLoanFacility = async () => {
 
@@ -1671,7 +1747,7 @@ export default function Home() {
      setErrorMessage(null)
 
     try {
-      const user = ensureEditor()
+      ensureEditor()
       if (!loanForm.facilityName.trim() || !loanForm.lenderCompanyId || !loanForm.borrowerCompanyId) {
         throw new Error('Loan name, lender and borrower are required')
       }
@@ -1680,37 +1756,38 @@ export default function Home() {
         throw new Error('Agreement date is required')
       }
 
-      if (selectedLoanId) {
-        const updated = await mockApi.updateLoan(
-          selectedLoanId,
-          {
-            name: loanForm.facilityName.trim(),
-            status: loanForm.status,
-            lenderCompanyId: loanForm.lenderCompanyId,
-            borrowerCompanyId: loanForm.borrowerCompanyId,
-            agreementDate: loanForm.agreementDate,
-            currency: loanForm.currency,
-            annualInterestRate: Number(loanForm.annualInterestRate),
-            daysInYear: Number(loanForm.daysInYear),
-          },
-          user,
-        )
-        setSelectedLoanId(updated.id)
+      const poAccessToken = localStorage.getItem("poAccessToken");
+      if (!poAccessToken) {
+        throw new Error("Access token is missing. Please sign in again.");
+      }
+      if (!isCreatingLoan && selectedLoanId) {
+        const lenderCompanyId = Number(loanForm.lenderCompanyId);
+        const borrowerCompanyId = Number(loanForm.borrowerCompanyId);
+        if (!Number.isFinite(lenderCompanyId) || !Number.isFinite(borrowerCompanyId)) {
+          throw new Error("Invalid lender/borrower company id. Please refresh and try again.");
+        }
+
+        await updateLoanFacility(poAccessToken, String(selectedLoanId), {
+          name: loanForm.facilityName.trim(),
+          lenderCompanyId,
+          borrowerCompanyId,
+          agreementDate: loanForm.agreementDate,
+          currency: loanForm.currency,
+          annualInterestRate: Number(loanForm.annualInterestRate),
+          daysInYear: Number(loanForm.daysInYear),
+          status: loanForm.status,
+        });
       } else {
-        const created = await mockApi.createLoan(
-          {
-            name: loanForm.facilityName.trim(),
-            status: loanForm.status,
-            lenderCompanyId: loanForm.lenderCompanyId,
-            borrowerCompanyId: loanForm.borrowerCompanyId,
-            agreementDate: loanForm.agreementDate,
-            currency: loanForm.currency,
-            annualInterestRate: Number(loanForm.annualInterestRate),
-            daysInYear: Number(loanForm.daysInYear),
-          },
-          user,
-        )
-        setSelectedLoanId(created.id)
+        await createLoanFacility(poAccessToken, {
+          name: loanForm.facilityName.trim(),
+          lenderCompanyId: Number(loanForm.lenderCompanyId) || 0,
+          borrowerCompanyId: Number(loanForm.borrowerCompanyId) || 0,
+          agreementDate: loanForm.agreementDate,
+          currency: loanForm.currency,
+          annualInterestRate: Number(loanForm.annualInterestRate),
+          daysInYear: Number(loanForm.daysInYear),
+          status: loanForm.status,
+        });
       }
 
       setIsCreatingLoan(false)
