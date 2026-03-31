@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/authProvider";
-import { API_BASE_URL } from "@/api";
+import { ssoLogin } from "@/api";
 import { loginRequest, msalConfig } from "@/msalConfig";
 import {
   InteractionRequiredAuthError,
@@ -57,46 +57,39 @@ const AuthLogin = () => {
           }
 
           // Exchange Microsoft idToken with backend JWT
-          const tokenResponse = await fetch(
-            `${API_BASE_URL}/api/v1/auth/sso-login`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-Access-Token": idToken,
-              },
-              body: JSON.stringify({}),
-            }
-          );
-
-          const result = await tokenResponse.json();
+          const result = await ssoLogin(idToken);
           console.log("POST /api/v1/auth/sso-login response:",result);
      
-          // On successful SSO login response, store tokens and decoded data
-          if (response && result.data?.access_token) {
-            const token = result.data.access_token;
-            const refreshToken = result.data.refresh_token;
+          // On successful SSO login response, store tokens and navigate only when access token is persisted.
+          if (response && result.data) {
+            const token = result.data.accessToken ?? result.data.access_token;
+            const refreshToken = result.data.refreshToken ?? result.data.refresh_token;
+
+            if (!token) {
+              setError(result.message || "Authentication failed");
+              return;
+            }
 
             setToken(token);
-            setRefreshToken(refreshToken);
+            if (refreshToken) {
+              setRefreshToken(refreshToken);
+            }
             localStorage.setItem("poLoginTime", Date.now().toString());
 
-            const base64Payload = token.split(".")[1];
-            const decodedPayload = JSON.parse(atob(base64Payload));
-            const role = decodedPayload.role;
-
-            document.cookie = `role=${role}; path=/;`;
-
-            // If it's an admin intent, store a flag
+            // Keep existing admin flag behavior, but route to home when poAccessToken is available.
             if (isAdminIntent) {
-                localStorage.setItem("adminAuthenticated", "true");
-                navigate("/admin");
-            } else {
-                navigate("/");
+              localStorage.setItem("adminAuthenticated", "true");
             }
-        } else {
+
+            const poAccessToken = localStorage.getItem("poAccessToken");
+            if (poAccessToken) {
+              navigate("/");
+            } else {
+              setError("Unable to persist access token");
+            }
+          } else {
             setError(result.message || "Authentication failed");
-        }
+          }
         } catch (error: any) {
           // MSAL may throw a benign hash_empty_error when there is no hash to process.
           // For popup flows this can be safely ignored and should not log as an error.

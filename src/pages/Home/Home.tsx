@@ -18,6 +18,7 @@ import { mockApi } from '../../services/mockApi';
 import type { MockUser } from '../../types';
 import LoanFacilityTab from "./LoanFacility";
 import ReportTab from "./Report";
+import { getLoanFacilities } from "@/api";
 
 
 export interface Company {
@@ -1577,10 +1578,13 @@ export default function Home() {
   };
 
   const loadAllData = useCallback(async () => {
+    const poAccessToken = localStorage.getItem("poAccessToken");
+    const loanFacilities = poAccessToken ? await getLoanFacilities(poAccessToken) : [];
+
     const [nextCountries, nextCompanies, nextLoans, nextUsers, nextCompanyHistory, nextUserHistory] = await Promise.all([
       mockApi.getCountries(),
       mockApi.getCompanies(),
-      mockApi.getLoans(),
+      Promise.resolve(loanFacilities),
       mockApi.getUsers(),
       mockApi.getCompanyHistory(),
       mockApi.getUserHistory(),
@@ -1651,6 +1655,14 @@ export default function Home() {
       }))
     )
   }, [])
+
+  useEffect(() => {
+    loadAllData().catch((error) => {
+      const message = error instanceof Error ? error.message : "Failed to load data";
+      setErrorMessage(message);
+      toast.error(message);
+    });
+  }, [loadAllData]);
 
 
   const handleSaveLoanFacility = async () => {
