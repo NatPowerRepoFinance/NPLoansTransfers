@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/authProvider";
-import { BACKEND_API_BASE_URL } from "@/lib/api";
+import { API_BASE_URL } from "@/api";
 import { loginRequest, msalConfig } from "@/msalConfig";
 import {
   InteractionRequiredAuthError,
@@ -58,7 +58,7 @@ const AuthLogin = () => {
 
           // Exchange Microsoft idToken with backend JWT
           const tokenResponse = await fetch(
-            `${BACKEND_API_BASE_URL}/auth/token`,
+            `${API_BASE_URL}/api/v1/auth/sso-login`,
             {
               method: "POST",
               headers: {
@@ -70,9 +70,9 @@ const AuthLogin = () => {
           );
 
           const result = await tokenResponse.json();
-          console.log("POST /auth/token response:",result);
+          console.log("POST /api/v1/auth/sso-login response:",result);
      
-          // On successful /auth/token response, store tokens and decoded data
+          // On successful SSO login response, store tokens and decoded data
           if (response && result.data?.access_token) {
             const token = result.data.access_token;
             const refreshToken = result.data.refresh_token;
