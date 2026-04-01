@@ -148,6 +148,27 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     handleSaveScheduleRow,
   } = props;
 
+  const isScheduleRowSubmitDisabled = (() => {
+    const annualInterestRate = Number(scheduleForm.annualInterestRate);
+    const drawDown = Number(scheduleForm.drawDown);
+    const repayment = Number(scheduleForm.repayment);
+    const fees = Number(scheduleForm.fees);
+
+    const hasRequiredFields =
+      !!scheduleForm.startDate &&
+      !!scheduleForm.endDate &&
+      !!scheduleForm.lenderBankAccount &&
+      !!scheduleForm.borrowerBankAccount;
+
+    const hasValidNumbers = ![annualInterestRate, drawDown, repayment, fees].some((value) =>
+      Number.isNaN(value),
+    );
+
+    const repaymentWithinDrawDown = repayment <= drawDown;
+
+    return !(hasRequiredFields && hasValidNumbers && repaymentWithinDrawDown);
+  })();
+
   return (
     <div
       className={`rounded-2xl border p-5 sm:p-6 shadow-[0_10px_35px_rgba(2,6,23,0.12)] ${
@@ -1057,7 +1078,14 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                     <button
                       type="button"
                       onClick={handleSaveScheduleRow}
-                      className="flex-1 px-4 py-2 rounded-lg font-medium transition bg-indigo-600 hover:bg-indigo-700 text-white"
+                      disabled={isScheduleRowSubmitDisabled}
+                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+                        isScheduleRowSubmitDisabled
+                          ? isDarkMode
+                            ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                          : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                      }`}
                     >
                       {scheduleRowSubmitLabel}
                     </button>
