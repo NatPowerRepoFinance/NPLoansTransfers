@@ -1,4 +1,4 @@
-import type { LoanFacility, ScheduleItem } from "@/utils/constants";
+import type { LoanFacility, LoanHistoryEntry, ScheduleItem } from "@/utils/constants";
 
 export const API_BASE_URL = "https://as-natpower-loans-transfer-backend-uksouth.azurewebsites.net/loan-and-transfer";
 
@@ -214,6 +214,42 @@ export const getLoanFacilitySchedule = async (
     repayment: Number(row?.repayment ?? 0),
     fees: Number(row?.fees ?? 0),
     updatedAt: String(row?.updatedAt ?? row?.updated_at ?? new Date().toISOString()),
+  }));
+};
+
+export const getLoanFacilityHistory = async (
+  poAccessToken: string,
+  loanFacilityId: string,
+): Promise<LoanHistoryEntry[]> => {
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/loan-facilities/${loanFacilityId}/history`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Access-Token": poAccessToken,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch loan facility history (${response.status})`);
+  }
+
+  const result = (await response.json()) as ApiEnvelope<any[]>;
+  const rawHistory = Array.isArray(result?.data) ? result.data : [];
+
+  return rawHistory.map((entry: any, index: number) => ({
+    id: String(entry?.id ?? index + 1),
+    timestamp: String(
+      entry?.eventTimestamp ?? entry?.timestamp ?? entry?.createdAt ?? entry?.created_at ?? "",
+    ),
+    userId: String(entry?.performedBy ?? entry?.userId ?? entry?.user_id ?? ""),
+    userName: String(
+      entry?.performedBy ?? entry?.userName ?? entry?.user_name ?? entry?.updatedBy ?? "System",
+    ),
+    action: String(entry?.eventType ?? entry?.action ?? "update").toUpperCase(),
+    details: String(entry?.summary ?? entry?.details ?? ""),
   }));
 };
 

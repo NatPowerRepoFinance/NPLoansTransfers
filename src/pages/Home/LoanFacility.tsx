@@ -3,7 +3,7 @@ import { Field, Label } from "@headlessui/react";
 import ReactSelect from "react-select";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef } from "ag-grid-community";
-import type { LoanFacility } from "../../utils/constants";
+import type { LoanFacility, LoanHistoryEntry } from "../../utils/constants";
 
 type LoanFacilityTabProps = {
   isDarkMode: boolean;
@@ -18,8 +18,11 @@ type LoanFacilityTabProps = {
   handleDeleteLoanFacility: () => void;
   exportLoanFacilityToExcel: () => void;
   exportLoanFacilityToPDF: () => void;
+  onOpenLoanFacilityHistoryModal: () => void;
   setShowLoanFacilityHistoryModal: (value: boolean) => void;
   showLoanFacilityHistoryModal: boolean;
+  loanFacilityHistory: LoanHistoryEntry[];
+  isLoanFacilityHistoryLoading: boolean;
   showLoanFacilityModal: boolean;
   setShowLoanFacilityModal: (value: boolean) => void;
   loanForm: {
@@ -105,8 +108,11 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     handleDeleteLoanFacility,
     exportLoanFacilityToExcel,
     exportLoanFacilityToPDF,
+    onOpenLoanFacilityHistoryModal,
     setShowLoanFacilityHistoryModal,
     showLoanFacilityHistoryModal,
+    loanFacilityHistory,
+    isLoanFacilityHistoryLoading,
     showLoanFacilityModal,
     setShowLoanFacilityModal,
     loanForm,
@@ -365,7 +371,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
               </button>
               <button
                 type="button"
-                onClick={() => setShowLoanFacilityHistoryModal(true)}
+                onClick={onOpenLoanFacilityHistoryModal}
                 className={`inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium border transition ${
                   isDarkMode
                     ? "bg-indigo-900/30 border-indigo-700 text-indigo-200 hover:bg-indigo-800/40"
@@ -395,8 +401,61 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                   Close
                 </button>
               </div>
-              <div className={`rounded-lg border p-6 text-sm ${isDarkMode ? "border-gray-700 text-gray-300" : "border-gray-200 text-gray-700"}`}>
-                No history yet.
+              <div className={`rounded-lg border overflow-hidden ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
+                <table className="w-full text-sm [border-collapse:separate] [border-spacing:0] [&_th]:tracking-wide [&_th]:uppercase [&_th]:text-[11px] [&_th]:font-bold [&_td]:align-middle [&_th]:border [&_td]:border [&_th]:border-slate-300/40 [&_td]:border-slate-300/30">
+                  <thead className={`${isDarkMode ? "bg-gray-700" : "bg-gray-100"}`}>
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm">Time</th>
+                      <th className="px-4 py-3 text-left text-sm">User</th>
+                      <th className="px-4 py-3 text-left text-sm">Action</th>
+                      <th className="px-4 py-3 text-left text-sm">Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {isLoanFacilityHistoryLoading ? (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className={`px-4 py-6 text-center text-sm ${
+                            isDarkMode ? "text-gray-400" : "text-gray-600"
+                          }`}
+                        >
+                          Loading history...
+                        </td>
+                      </tr>
+                    ) : loanFacilityHistory.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className={`px-4 py-6 text-center text-sm ${
+                            isDarkMode ? "text-gray-400" : "text-gray-600"
+                          }`}
+                        >
+                          No history yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      loanFacilityHistory.map((entry) => (
+                        <tr
+                          key={entry.id}
+                          className={`border-t ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}
+                        >
+                          <td className="px-4 py-3 text-sm">
+                            {entry.timestamp ? new Date(entry.timestamp).toLocaleString() : "-"}
+                          </td>
+                          <td className="px-4 py-3 text-sm">{entry.userName || "System"}</td>
+                          <td className="px-4 py-3 text-sm font-medium">
+                            <span className="inline-flex items-center gap-1">
+                              <ClockIcon className="w-3.5 h-3.5" />
+                              {entry.action}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm">{entry.details || "-"}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

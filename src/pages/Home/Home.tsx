@@ -4,6 +4,7 @@ import { Bounce, toast, ToastContainer } from "react-toastify";
 import dummyData from "@/lib/api/dummyRisks.json";
 import {
   LoanFacility,
+  LoanHistoryEntry,
 } from "../../utils/constants";
 import { TrashIcon, MoonIcon, SunIcon, PlusIcon, PencilIcon, ClockIcon } from "@heroicons/react/24/outline";
 import useConfirmDialog from "@/components/confirmDialog";
@@ -30,6 +31,7 @@ import {
   getCountries,
   importLoanFacilitySchedule,
   getLoanFacilities,
+  getLoanFacilityHistory,
   getLoanFacilitySchedule,
   getUsers,
   updateCountry,
@@ -195,6 +197,8 @@ export default function Home() {
   const [showCompanyHistoryModal, setShowCompanyHistoryModal] = useState(false);
   const [companyHistory, setCompanyHistory] = useState<CompanyHistoryEntry[]>([]);
   const [showLoanFacilityHistoryModal, setShowLoanFacilityHistoryModal] = useState(false);
+  const [loanFacilityHistory, setLoanFacilityHistory] = useState<LoanHistoryEntry[]>([]);
+  const [isLoanFacilityHistoryLoading, setIsLoanFacilityHistoryLoading] = useState(false);
   const [showUserHistoryModal, setShowUserHistoryModal] = useState(false);
   const [userHistory, setUserHistory] = useState<UserHistoryEntry[]>([]);
   const [showScheduleRowModal, setShowScheduleRowModal] = useState(false);
@@ -1754,6 +1758,34 @@ export default function Home() {
     };
   }, [selectedLoanId, loans]);
 
+  const handleOpenLoanFacilityHistoryModal = useCallback(async () => {
+    if (!selectedLoanId) {
+      toast.error("Please select a Loan Facility first.");
+      return;
+    }
+
+    const poAccessToken = localStorage.getItem("poAccessToken");
+    if (!poAccessToken) {
+      toast.error("Access token is missing. Please sign in again.");
+      return;
+    }
+
+    setShowLoanFacilityHistoryModal(true);
+    setIsLoanFacilityHistoryLoading(true);
+    setLoanFacilityHistory([]);
+
+    try {
+      const historyRows = await getLoanFacilityHistory(poAccessToken, String(selectedLoanId));
+      setLoanFacilityHistory(historyRows);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to load loan facility history";
+      setErrorMessage(message);
+      toast.error(message);
+    } finally {
+      setIsLoanFacilityHistoryLoading(false);
+    }
+  }, [selectedLoanId]);
+
 
   const handleSaveLoanFacility = async () => {
 
@@ -2042,8 +2074,11 @@ export default function Home() {
             handleDeleteLoanFacility={handleDeleteLoanFacility}
             exportLoanFacilityToExcel={exportLoanFacilityToExcel}
             exportLoanFacilityToPDF={exportLoanFacilityToPDF}
+            onOpenLoanFacilityHistoryModal={handleOpenLoanFacilityHistoryModal}
             setShowLoanFacilityHistoryModal={setShowLoanFacilityHistoryModal}
             showLoanFacilityHistoryModal={showLoanFacilityHistoryModal}
+            loanFacilityHistory={loanFacilityHistory}
+            isLoanFacilityHistoryLoading={isLoanFacilityHistoryLoading}
             showLoanFacilityModal={showLoanFacilityModal}
             setShowLoanFacilityModal={setShowLoanFacilityModal}
             loanForm={loanForm}

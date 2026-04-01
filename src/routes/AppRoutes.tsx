@@ -43,9 +43,9 @@ export const AppRoutes = ({ token }: { token: string | null }) => (
          <Route
         path="/*"
         element={
-            // <AuthGuard isAuthenticated={!!token}>
+            <AuthGuard token={token}>
                 <MainLayout />
-            // </AuthGuard>
+            </AuthGuard>
         }
         > 
 
