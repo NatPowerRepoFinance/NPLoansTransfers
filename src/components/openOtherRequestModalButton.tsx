@@ -1,4 +1,4 @@
-import OtherRequestModal from "./OtherRequestModal";
+import OtherRequestModal from "./modal";
 
 const OpenOtherReqModalButton = (params: any) => {
   const { data, context } = params;

@@ -161,12 +161,12 @@ export default function PoModal({
 
   const categoryOptions = Object.entries(RiskCategoryMap).map(
     ([key, label]) => ({
-      value: Number(key),
+      value: String(key),
       label,
     })
   );
   const statusOptions = Object.entries(RiskStatusMap).map(([key, label]) => ({
-    value: Number(key),
+    value: String(key),
     label,
   }));
   // const typeOptions = Object.entries(RiskTypeMap).map(([key, label]) => ({
