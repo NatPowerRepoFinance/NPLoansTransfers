@@ -6,7 +6,17 @@ import {
   LoanFacility,
   LoanHistoryEntry,
 } from "../../utils/constants";
-import { TrashIcon, MoonIcon, SunIcon, PlusIcon, PencilIcon, ClockIcon } from "@heroicons/react/24/outline";
+import {
+  TrashIcon,
+  MoonIcon,
+  SunIcon,
+  PlusIcon,
+  PencilIcon,
+  ClockIcon,
+  TableCellsIcon,
+  ArrowDownTrayIcon,
+  ArrowUpTrayIcon,
+} from "@heroicons/react/24/outline";
 import useConfirmDialog from "@/components/confirmDialog";
 import * as XLSX from "xlsx";
 import type { ColDef } from "ag-grid-community";
@@ -21,6 +31,7 @@ import ReportTab from "./Report";
 import {
   createCountry,
   createCompany,
+  getCompaniesHistory,
   createLoanFacility,
   createLoanFacilityScheduleRow,
   createUser,
@@ -36,6 +47,7 @@ import {
   updateLoanFacilityScheduleRow,
   deleteLoanFacilityScheduleRow,
   getUsers,
+  getUsersHistory,
   updateCountry,
   updateCompany,
   updateLoanFacility,
@@ -71,6 +83,7 @@ interface CompanyHistoryEntry {
   id: number;
   timestamp: string;
   action: "ADD" | "EDIT" | "DELETE" | "IMPORT";
+  createdBy: string;
   companyName: string;
   details: string;
 }
@@ -198,11 +211,13 @@ export default function Home() {
   const [countryFormData, setCountryFormData] = useState({ name: "", countryCode: "" });
   const [showCompanyHistoryModal, setShowCompanyHistoryModal] = useState(false);
   const [companyHistory, setCompanyHistory] = useState<CompanyHistoryEntry[]>([]);
+  const [isCompanyHistoryLoading, setIsCompanyHistoryLoading] = useState(false);
   const [showLoanFacilityHistoryModal, setShowLoanFacilityHistoryModal] = useState(false);
   const [loanFacilityHistory, setLoanFacilityHistory] = useState<LoanHistoryEntry[]>([]);
   const [isLoanFacilityHistoryLoading, setIsLoanFacilityHistoryLoading] = useState(false);
   const [showUserHistoryModal, setShowUserHistoryModal] = useState(false);
   const [userHistory, setUserHistory] = useState<UserHistoryEntry[]>([]);
+  const [isUserHistoryLoading, setIsUserHistoryLoading] = useState(false);
   const [showScheduleRowModal, setShowScheduleRowModal] = useState(false);
   const [editingScheduleRowId, setEditingScheduleRowId] = useState<string | null>(null);
   const [editingScheduleRowIndex, setEditingScheduleRowIndex] = useState<number | null>(null);
@@ -224,6 +239,18 @@ export default function Home() {
     "flex items-center justify-center gap-1.5 h-9 px-3.5 min-w-[130px] rounded-xl text-xs font-semibold transition-all shadow-sm border border-transparent bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white";
   const userHeaderButtonClass =
     "flex items-center justify-center gap-1.5 h-9 px-3.5 min-w-[130px] rounded-xl text-xs font-semibold transition-all shadow-sm border border-transparent bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white";
+  const tableActionButtonBaseClass =
+    "group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 shadow-sm hover:-translate-y-[1px] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1";
+  const tableEditButtonClass = `${tableActionButtonBaseClass} ${
+    isDarkMode
+      ? "bg-blue-500/15 border-blue-400/35 text-blue-300 hover:bg-blue-500/25 focus-visible:ring-blue-400"
+      : "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 focus-visible:ring-blue-300"
+  }`;
+  const tableDeleteButtonClass = `${tableActionButtonBaseClass} ${
+    isDarkMode
+      ? "bg-rose-500/15 border-rose-400/35 text-rose-300 hover:bg-rose-500/25 focus-visible:ring-rose-400"
+      : "bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 focus-visible:ring-rose-300"
+  }`;
 
 
   useEffect(() => {
@@ -269,11 +296,48 @@ export default function Home() {
         id: prev.length + 1,
         timestamp: new Date().toISOString(),
         action,
+        createdBy: "System",
         companyName,
         details,
       },
       ...prev,
     ]);
+  };
+
+  const handleOpenCompanyHistoryModal = async () => {
+    setShowCompanyHistoryModal(true);
+    setIsCompanyHistoryLoading(true);
+    try {
+      const poAccessToken = localStorage.getItem("poAccessToken");
+      if (!poAccessToken) {
+        throw new Error("Access token is missing. Please sign in again.");
+      }
+
+      const historyRows = await getCompaniesHistory(poAccessToken);
+      setCompanyHistory(
+        historyRows.map((entry, index) => ({
+          id: Number.parseInt(entry.id, 10) || index + 1,
+          timestamp: entry.timestamp,
+          action:
+            entry.action === "ADD" ||
+            entry.action === "EDIT" ||
+            entry.action === "DELETE" ||
+            entry.action === "IMPORT"
+              ? entry.action
+              : "IMPORT",
+          createdBy: entry.createdBy || "System",
+          companyName: entry.companyName || "Company",
+          details: entry.details,
+        })),
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to fetch company history";
+      setErrorMessage(message);
+      toast.error(message);
+    } finally {
+      setIsCompanyHistoryLoading(false);
+    }
   };
 
   const addUserHistoryEntry = (
@@ -291,6 +355,40 @@ export default function Home() {
       },
       ...prev,
     ]);
+  };
+
+  const handleOpenUserHistoryModal = async () => {
+    setShowUserHistoryModal(true);
+    setIsUserHistoryLoading(true);
+    try {
+      const poAccessToken = localStorage.getItem("poAccessToken");
+      if (!poAccessToken) {
+        throw new Error("Access token is missing. Please sign in again.");
+      }
+
+      const historyRows = await getUsersHistory(poAccessToken);
+      setUserHistory(
+        historyRows.map((entry, index) => ({
+          id: Number.parseInt(entry.id, 10) || index + 1,
+          timestamp: entry.timestamp,
+          action:
+            entry.action === "ADD" ||
+            entry.action === "EDIT" ||
+            entry.action === "DELETE" ||
+            entry.action === "IMPORT"
+              ? entry.action
+              : "IMPORT",
+          userName: entry.userName || "User",
+          details: entry.details,
+        })),
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to fetch user history";
+      setErrorMessage(message);
+      toast.error(message);
+    } finally {
+      setIsUserHistoryLoading(false);
+    }
   };
 
   const handleOpenModal = (company?: Company) => {
@@ -1766,6 +1864,7 @@ export default function Home() {
           entry.action === "IMPORT"
             ? entry.action
             : "IMPORT",
+        createdBy: entry.userName || "System",
         companyName: entry.userName || "System",
         details: entry.details,
       }))
@@ -2219,27 +2318,34 @@ export default function Home() {
                     onClick={exportCompaniesToExcel}
                     className={companyHeaderButtonClass}
                   >
+                    <TableCellsIcon className="w-4 h-4" />
                     Export Excel
                   </button>
                   <button
                     onClick={downloadCompanyImportTemplate}
                     className={companyHeaderButtonClass}
                   >
+                    <ArrowDownTrayIcon className="w-4 h-4" />
                     Download Template
                   </button>
                   <button
                     onClick={openImportCompanyModal}
                     className={companyHeaderButtonClass}
                   >
+                    <ArrowUpTrayIcon className="w-4 h-4" />
                     Import Excel
                   </button>
                   <button
-                    onClick={() => setShowCompanyHistoryModal(true)}
-                    title="Change history"
-                    className="flex items-center justify-center h-8 w-8 rounded-lg transition bg-[#1d2636] hover:bg-[#27354d] text-white"
+                    onClick={handleOpenCompanyHistoryModal}
+                    title="History Log"
+                    className={`group inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-xs font-semibold border transition-all shadow-sm hover:-translate-y-[1px] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${
+                      isDarkMode
+                        ? "bg-indigo-500/15 border-indigo-400/35 text-indigo-300 hover:bg-indigo-500/25 focus-visible:ring-indigo-400"
+                        : "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 focus-visible:ring-indigo-300"
+                    }`}
                   >
-                    <ClockIcon className="w-3 h-3" />
-                   
+                    <ClockIcon className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
+                    <span>History Log</span>
                   </button>
                 </div>
               </div>
@@ -2451,26 +2557,18 @@ export default function Home() {
                             <div className="flex gap-2">
                               <button
                                 onClick={() => handleOpenModal(company)}
-                                className={`flex items-center gap-1 px-3 py-1 rounded transition ${
-                                  isDarkMode
-                                    ? "bg-blue-600/20 hover:bg-blue-600/30 text-blue-400"
-                                    : "bg-blue-100 hover:bg-blue-200 text-blue-600"
-                                }`}
+                                className={tableEditButtonClass}
                                 title="Edit"
                               >
-                                <PencilIcon className="w-3.5 h-3.5" />
+                                <PencilIcon className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
                                 <span className="text-xs">Edit</span>
                               </button>
                               <button
                                 onClick={() => handleDelete(company.id)}
-                                className={`flex items-center gap-1 px-3 py-1 rounded transition ${
-                                  isDarkMode
-                                    ? "bg-red-600/20 hover:bg-red-600/30 text-red-400"
-                                    : "bg-red-100 hover:bg-red-200 text-red-600"
-                                }`}
+                                className={tableDeleteButtonClass}
                                 title="Delete"
                               >
-                                <TrashIcon className="w-3.5 h-3.5" />
+                                <TrashIcon className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
                                 <span className="text-xs">Delete</span>
                               </button>
                             </div>
@@ -2711,14 +2809,21 @@ export default function Home() {
                         <tr>
                           <th className="px-4 py-3 text-left text-sm">Time</th>
                           <th className="px-4 py-3 text-left text-sm">Action</th>
+                          <th className="px-4 py-3 text-left text-sm">Created By</th>
                           <th className="px-4 py-3 text-left text-sm">Company</th>
                           <th className="px-4 py-3 text-left text-sm">Details</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {companyHistory.length === 0 ? (
+                        {isCompanyHistoryLoading ? (
                           <tr>
-                            <td colSpan={4} className={`px-4 py-6 text-center text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
+                            <td colSpan={5} className={`px-4 py-6 text-center text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
+                              Loading history...
+                            </td>
+                          </tr>
+                        ) : companyHistory.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className={`px-4 py-6 text-center text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
                               No history yet.
                             </td>
                           </tr>
@@ -2732,6 +2837,7 @@ export default function Home() {
                                   {entry.action}
                                 </span>
                               </td>
+                              <td className="px-4 py-3 text-sm">{entry.createdBy}</td>
                               <td className="px-4 py-3 text-sm">{entry.companyName}</td>
                               <td className="px-4 py-3 text-sm">{entry.details}</td>
                             </tr>
@@ -2843,26 +2949,18 @@ export default function Home() {
                             <div className="flex gap-2">
                               <button
                                 onClick={() => handleOpenCountryModal(country)}
-                                className={`flex items-center gap-1 px-3 py-1 rounded transition ${
-                                  isDarkMode
-                                    ? "bg-blue-600/20 hover:bg-blue-600/30 text-blue-400"
-                                    : "bg-blue-100 hover:bg-blue-200 text-blue-600"
-                                }`}
+                                className={tableEditButtonClass}
                                 title="Edit"
                               >
-                                <PencilIcon className="w-4 h-4" />
+                                <PencilIcon className="w-4 h-4 transition-transform group-hover:scale-110" />
                                 <span className="text-xs">Edit</span>
                               </button>
                               <button
                                 onClick={() => handleDeleteCountry(country.id)}
-                                className={`flex items-center gap-1 px-3 py-1 rounded transition ${
-                                  isDarkMode
-                                    ? "bg-red-600/20 hover:bg-red-600/30 text-red-400"
-                                    : "bg-red-100 hover:bg-red-200 text-red-600"
-                                }`}
+                                className={tableDeleteButtonClass}
                                 title="Delete"
                               >
-                                <TrashIcon className="w-4 h-4" />
+                                <TrashIcon className="w-4 h-4 transition-transform group-hover:scale-110" />
                                 <span className="text-xs">Delete</span>
                               </button>
                             </div>
@@ -2969,20 +3067,28 @@ export default function Home() {
                     Add User
                   </button>
                   <button onClick={exportUsersToExcel} className={userHeaderButtonClass}>
+                    <TableCellsIcon className="w-4 h-4" />
                     Export Excel
                   </button>
                   <button onClick={downloadUserTemplate} className={userHeaderButtonClass}>
+                    <ArrowDownTrayIcon className="w-4 h-4" />
                     Download Template
                   </button>
                   <button onClick={openImportUserModal} className={userHeaderButtonClass}>
+                    <ArrowUpTrayIcon className="w-4 h-4" />
                     Import Excel
                   </button>
                   <button
-                    onClick={() => setShowUserHistoryModal(true)}
-                    title="User history"
-                    className="flex items-center justify-center h-8 w-8 rounded-lg transition bg-[#1d2636] hover:bg-[#27354d] text-white"
+                    onClick={handleOpenUserHistoryModal}
+                    title="User History Log"
+                    className={`group inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-xs font-semibold border cursor-pointer transition-all shadow-sm hover:-translate-y-[1px] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${
+                      isDarkMode
+                        ? "bg-indigo-500/15 border-indigo-400/35 text-indigo-300 hover:bg-indigo-500/25 focus-visible:ring-indigo-400"
+                        : "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 focus-visible:ring-indigo-300"
+                    }`}
                   >
-                    <ClockIcon className="w-3 h-3" />
+                    <ClockIcon className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
+                    <span>History Log</span>
                   </button>
                   <input
                     ref={userImportInputRef}
@@ -3180,26 +3286,18 @@ export default function Home() {
                             <div className="flex gap-2">
                               <button
                                 onClick={() => handleOpenUserModal(user)}
-                                className={`flex items-center gap-1 px-3 py-1 rounded transition ${
-                                  isDarkMode
-                                    ? "bg-blue-600/20 hover:bg-blue-600/30 text-blue-400"
-                                    : "bg-blue-100 hover:bg-blue-200 text-blue-600"
-                                }`}
+                                className={tableEditButtonClass}
                                 title="Edit"
                               >
-                                <PencilIcon className="w-4 h-4" />
+                                <PencilIcon className="w-4 h-4 transition-transform group-hover:scale-110" />
                                 <span className="text-xs">Edit</span>
                               </button>
                               <button
                                 onClick={() => handleDeleteUser(user.id)}
-                                className={`flex items-center gap-1 px-3 py-1 rounded transition ${
-                                  isDarkMode
-                                    ? "bg-red-600/20 hover:bg-red-600/30 text-red-400"
-                                    : "bg-red-100 hover:bg-red-200 text-red-600"
-                                }`}
+                                className={tableDeleteButtonClass}
                                 title="Delete"
                               >
-                                <TrashIcon className="w-4 h-4" />
+                                <TrashIcon className="w-4 h-4 transition-transform group-hover:scale-110" />
                                 <span className="text-xs">Delete</span>
                               </button>
                             </div>
@@ -3214,7 +3312,7 @@ export default function Home() {
 
             {showUserHistoryModal && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div className={`rounded-lg p-6 w-full max-w-3xl ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
+                <div className={`rounded-lg p-6 w-full max-w-3xl h-[50vh] flex flex-col ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xl font-semibold">User Change History</h3>
                     <button
@@ -3229,7 +3327,7 @@ export default function Home() {
                     </button>
                   </div>
 
-                  <div className={`rounded-lg border overflow-hidden ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
+                  <div className={`rounded-lg border overflow-y-auto flex-1 ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
                     <table className="w-full text-sm [border-collapse:separate] [border-spacing:0] [&_th]:tracking-wide [&_th]:uppercase [&_th]:text-[11px] [&_th]:font-bold [&_td]:align-middle [&_th]:border [&_td]:border [&_th]:border-slate-300/40 [&_td]:border-slate-300/30">
                       <thead className={`${isDarkMode ? "bg-gray-700" : "bg-gray-100"}`}>
                         <tr>
@@ -3240,7 +3338,13 @@ export default function Home() {
                         </tr>
                       </thead>
                       <tbody>
-                        {userHistory.length === 0 ? (
+                        {isUserHistoryLoading ? (
+                          <tr>
+                            <td colSpan={4} className={`px-4 py-6 text-center text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
+                              Loading history...
+                            </td>
+                          </tr>
+                        ) : userHistory.length === 0 ? (
                           <tr>
                             <td colSpan={4} className={`px-4 py-6 text-center text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
                               No history yet.

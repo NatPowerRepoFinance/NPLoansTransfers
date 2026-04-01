@@ -37,6 +37,10 @@ html {
   width: -webkit-fill-available;
 }
 
+button{
+  cursor: pointer;
+}
+
 body {
   margin: 0;
   place-items: center;

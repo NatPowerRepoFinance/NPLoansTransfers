@@ -61,6 +61,22 @@ type CompanyApiItem = {
     | string;
 };
 
+type CompanyHistoryApiItem = {
+  id?: number | string;
+  eventType?: string;
+  eventTimestamp?: string;
+  performedBy?: string;
+  summary?: string;
+  beforeJson?: string | null;
+  afterJson?: string | null;
+  companyName?: string;
+  company_name?: string;
+  details?: string;
+  action?: string;
+  timestamp?: string;
+  userName?: string;
+};
+
 type CreateCompanyPayload = {
   id: number;
   name: string;
@@ -94,6 +110,20 @@ type UserApiItem = {
   email?: string;
   role?: string;
   country?: string;
+};
+type UserHistoryApiItem = {
+  id?: number | string;
+  eventType?: string;
+  eventTimestamp?: string;
+  performedBy?: string;
+  summary?: string;
+  beforeJson?: string | null;
+  afterJson?: string | null;
+  userName?: string;
+  user_name?: string;
+  details?: string;
+  action?: string;
+  timestamp?: string;
 };
 type CreateUserPayload = {
   firstName: string;
@@ -424,6 +454,67 @@ export const getCompanies = async (
   }));
 };
 
+export const getCompaniesHistory = async (
+  poAccessToken: string,
+): Promise<
+  Array<{
+    id: string;
+    timestamp: string;
+    action: string;
+    createdBy: string;
+    companyName: string;
+    details: string;
+  }>
+> => {
+  const response = await fetch(`${API_BASE_URL}/api/v1/companies/history`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Access-Token": poAccessToken,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch companies history (${response.status})`);
+  }
+
+  const result = (await response.json()) as ApiEnvelope<CompanyHistoryApiItem[]>;
+  const rows = Array.isArray(result?.data) ? result.data : [];
+
+  return rows.map((entry, index) => {
+    const rawEventType = String(entry?.eventType ?? entry?.action ?? "").toLowerCase();
+    const action =
+      rawEventType === "create"
+        ? "ADD"
+        : rawEventType === "update"
+        ? "EDIT"
+        : rawEventType === "delete"
+        ? "DELETE"
+        : "IMPORT";
+
+    let parsedCompanyName = "";
+    try {
+      const after = entry?.afterJson ? JSON.parse(entry.afterJson as string) : null;
+      const before = entry?.beforeJson ? JSON.parse(entry.beforeJson as string) : null;
+      parsedCompanyName = String(after?.name ?? before?.name ?? "").trim();
+    } catch {
+      parsedCompanyName = "";
+    }
+
+    return {
+      id: String(entry?.id ?? index + 1),
+      timestamp: String(entry?.eventTimestamp ?? entry?.timestamp ?? ""),
+      action,
+      createdBy: String(entry?.performedBy ?? entry?.userName ?? "").trim() || "System",
+      companyName:
+        String(entry?.companyName ?? entry?.company_name ?? "").trim() ||
+        parsedCompanyName ||
+        "Company",
+      details: String(entry?.summary ?? entry?.details ?? ""),
+    };
+  });
+};
+
 export const createCompany = async (
   poAccessToken: string,
   payload: CreateCompanyPayload,
@@ -592,6 +683,75 @@ export const getUsers = async (
     role: String(user?.role ?? ""),
     country: String(user?.country ?? ""),
   }));
+};
+
+export const getUsersHistory = async (
+  poAccessToken: string,
+): Promise<
+  Array<{
+    id: string;
+    timestamp: string;
+    action: string;
+    userName: string;
+    updatedBy: string;
+    details: string;
+  }>
+> => {
+  const response = await fetch(`${API_BASE_URL}/api/v1/users/history`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Access-Token": poAccessToken,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch users history (${response.status})`);
+  }
+
+  const result = (await response.json()) as ApiEnvelope<UserHistoryApiItem[]>;
+  const rows = Array.isArray(result?.data) ? result.data : [];
+
+  return rows.map((entry, index) => {
+    const rawEventType = String(entry?.eventType ?? entry?.action ?? "").toLowerCase();
+    const action =
+      rawEventType === "create"
+        ? "ADD"
+        : rawEventType === "update"
+        ? "EDIT"
+        : rawEventType === "delete"
+        ? "DELETE"
+        : "IMPORT";
+
+    let parsedName = "";
+    let parsedUpdatedBy = "";
+    try {
+      const after = entry?.afterJson ? JSON.parse(entry.afterJson as string) : null;
+      const before = entry?.beforeJson ? JSON.parse(entry.beforeJson as string) : null;
+      parsedName = String(
+        after?.email ??
+          after?.name ??
+          after?.firstName ??
+          before?.email ??
+          before?.name ??
+          before?.firstName ??
+          "",
+      ).trim();
+      parsedUpdatedBy = String(after?.updatedBy ?? before?.updatedBy ?? "").trim();
+    } catch {
+      parsedName = "";
+      parsedUpdatedBy = "";
+    }
+
+    return {
+      id: String(entry?.id ?? index + 1),
+      timestamp: String(entry?.eventTimestamp ?? entry?.timestamp ?? ""),
+      action,
+      userName: parsedName || String(entry?.userName ?? entry?.user_name ?? "").trim() || "User",
+      updatedBy: parsedUpdatedBy || String(entry?.performedBy ?? "").trim() || "System",
+      details: String(entry?.summary ?? entry?.details ?? ""),
+    };
+  });
 };
 
 export const createUser = async (
