@@ -33,6 +33,8 @@ import {
   getLoanFacilities,
   getLoanFacilityHistory,
   getLoanFacilitySchedule,
+  updateLoanFacilityScheduleRow,
+  deleteLoanFacilityScheduleRow,
   getUsers,
   updateCountry,
   updateCompany,
@@ -202,6 +204,8 @@ export default function Home() {
   const [showUserHistoryModal, setShowUserHistoryModal] = useState(false);
   const [userHistory, setUserHistory] = useState<UserHistoryEntry[]>([]);
   const [showScheduleRowModal, setShowScheduleRowModal] = useState(false);
+  const [editingScheduleRowId, setEditingScheduleRowId] = useState<string | null>(null);
+  const [editingScheduleRowIndex, setEditingScheduleRowIndex] = useState<number | null>(null);
    const [isImportScheduleModalOpen, setIsImportScheduleModalOpen] = useState(false)
   const [importScheduleMode, setImportScheduleMode] = useState<'overwrite' | 'extend'>('extend')
   const [importScheduleFile, setImportScheduleFile] = useState<File | null>(null)
@@ -901,8 +905,17 @@ export default function Home() {
       toast.error("Please select a Loan Facility first.");
       return;
     }
+    setEditingScheduleRowId(null);
+    setEditingScheduleRowIndex(null);
     resetScheduleForm();
     setShowScheduleRowModal(true);
+  };
+
+  const closeScheduleRowModal = () => {
+    setShowScheduleRowModal(false);
+    setEditingScheduleRowId(null);
+    setEditingScheduleRowIndex(null);
+    resetScheduleForm();
   };
 
   const handleSaveScheduleRow = async () => {
@@ -944,12 +957,7 @@ export default function Home() {
       }
 
       const loanFacilityId = String(selectedLoanId);
-      const rowIndex = Array.isArray(selectedLoanFacility.schedule)
-        ? selectedLoanFacility.schedule.length
-        : 0;
-
-      await createLoanFacilityScheduleRow(poAccessToken, loanFacilityId, {
-        rowIndex,
+      const payload = {
         startDate: scheduleForm.startDate,
         endDate: scheduleForm.endDate,
         lenderBankAccount: scheduleForm.lenderBankAccount,
@@ -958,7 +966,25 @@ export default function Home() {
         drawDown,
         repayment,
         fees,
-      });
+      };
+
+      if (editingScheduleRowId) {
+        await updateLoanFacilityScheduleRow(
+          poAccessToken,
+          loanFacilityId,
+          editingScheduleRowId,
+          {
+            ...payload,
+            rowIndex:
+              editingScheduleRowIndex ??
+              (Array.isArray(selectedLoanFacility.schedule)
+                ? selectedLoanFacility.schedule.length
+                : 0),
+          },
+        );
+      } else {
+        await createLoanFacilityScheduleRow(poAccessToken, loanFacilityId, payload);
+      }
 
       const updatedSchedule = await getLoanFacilitySchedule(poAccessToken, loanFacilityId);
       setLoans((prevLoans) =>
@@ -967,12 +993,19 @@ export default function Home() {
         ),
       );
 
-      setShowScheduleRowModal(false);
-      resetScheduleForm();
-      toast.success("Schedule row added successfully.");
+      closeScheduleRowModal();
+      toast.success(
+        editingScheduleRowId
+          ? "Schedule row updated successfully."
+          : "Schedule row added successfully.",
+      );
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to add schedule row."
+        error instanceof Error
+          ? error.message
+          : editingScheduleRowId
+          ? "Failed to update schedule row."
+          : "Failed to add schedule row."
       );
     }
   };
@@ -1271,13 +1304,58 @@ export default function Home() {
   }, [isViewer, canEdit, canDelete, isDarkMode]);
 
   const editSchedule = (row: DrawDownRow) => {
-    toast.info(`Edit for schedule row ${row.scheduleIndex} is not implemented yet.`);
+    setEditingScheduleRowId(String(row.id));
+    setEditingScheduleRowIndex(Number(row.scheduleIndex));
+    setScheduleForm({
+      startDate: row.startDate,
+      endDate: row.endDate,
+      lenderBankAccount: row.lenderBankAccount,
+      borrowerBankAccount: row.borrowerBankAccount,
+      annualInterestRate: String(row.annualInterestRate ?? 0),
+      drawDown: String(row.drawDown ?? 0),
+      repayment: String(row.repayment ?? 0),
+      fees: String(row.fees ?? 0),
+    });
+    setShowScheduleRowModal(true);
   };
 
-  const deleteSchedule = (row: DrawDownRow) => {
-    toast.info(
-      `Delete for schedule row ${row.scheduleIndex} is not implemented yet.`
+  const deleteSchedule = async (row: DrawDownRow) => {
+    if (!selectedLoanFacility) {
+      toast.error("Please select a Loan Facility first.");
+      return;
+    }
+
+    const shouldDelete = window.confirm(
+      `Delete schedule row ${row.scheduleIndex}? This action cannot be undone.`,
     );
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      ensureEditor();
+      const poAccessToken = localStorage.getItem("poAccessToken");
+      if (!poAccessToken) {
+        toast.error("Access token is missing. Please sign in again.");
+        return;
+      }
+
+      const loanFacilityId = String(selectedLoanId);
+      await deleteLoanFacilityScheduleRow(poAccessToken, loanFacilityId, String(row.id));
+
+      const updatedSchedule = await getLoanFacilitySchedule(poAccessToken, loanFacilityId);
+      setLoans((prevLoans) =>
+        prevLoans.map((loan) =>
+          String(loan.id) === loanFacilityId ? { ...loan, schedule: updatedSchedule } : loan,
+        ),
+      );
+
+      toast.success("Schedule row deleted successfully.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete schedule row.",
+      );
+    }
   };
 
   const loanFacilityFieldValue = (keys: string[], fallback = "-") => {
@@ -1721,13 +1799,6 @@ export default function Home() {
       return;
     }
 
-    const selectedLoan = loans.find(
-      (loan) => String(loan.id) === String(selectedLoanId),
-    );
-    if (!selectedLoan || (Array.isArray(selectedLoan.schedule) && selectedLoan.schedule.length > 0)) {
-      return;
-    }
-
     let isCancelled = false;
 
     getLoanFacilitySchedule(poAccessToken, String(selectedLoanId))
@@ -1756,7 +1827,7 @@ export default function Home() {
     return () => {
       isCancelled = true;
     };
-  }, [selectedLoanId, loans]);
+  }, [selectedLoanId]);
 
   const handleOpenLoanFacilityHistoryModal = useCallback(async () => {
     if (!selectedLoanId) {
@@ -2103,7 +2174,11 @@ export default function Home() {
             closeImportScheduleModal={closeImportScheduleModal}
             handleImportSchedule={handleImportSchedule}
             showScheduleRowModal={showScheduleRowModal}
-            setShowScheduleRowModal={setShowScheduleRowModal}
+            onCloseScheduleRowModal={closeScheduleRowModal}
+            scheduleRowModalTitle={
+              editingScheduleRowId ? "Edit Schedule Row" : "Add Schedule Row"
+            }
+            scheduleRowSubmitLabel={editingScheduleRowId ? "Update Row" : "Save Row"}
             scheduleForm={scheduleForm}
             setScheduleForm={setScheduleForm}
             availableBankAccounts={availableBankAccounts}

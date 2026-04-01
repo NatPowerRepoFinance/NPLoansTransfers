@@ -22,7 +22,7 @@ type SsoLoginResponse = {
 };
 
 type CreateLoanFacilitySchedulePayload = {
-  rowIndex: number;
+  rowIndex?: number;
   startDate: string;
   endDate: string;
   lenderBankAccount: string;
@@ -272,6 +272,50 @@ export const createLoanFacilityScheduleRow = async (
 
   if (!response.ok) {
     throw new Error(`Failed to create schedule row (${response.status})`);
+  }
+};
+
+export const updateLoanFacilityScheduleRow = async (
+  poAccessToken: string,
+  loanFacilityId: string,
+  rowId: string,
+  payload: CreateLoanFacilitySchedulePayload,
+): Promise<void> => {
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/loan-facilities/${loanFacilityId}/schedule/${rowId}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Access-Token": poAccessToken,
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to update schedule row (${response.status})`);
+  }
+};
+
+export const deleteLoanFacilityScheduleRow = async (
+  poAccessToken: string,
+  loanFacilityId: string,
+  rowId: string,
+): Promise<void> => {
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/loan-facilities/${loanFacilityId}/schedule/${rowId}`,
+    {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Access-Token": poAccessToken,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete schedule row (${response.status})`);
   }
 };
 

@@ -67,7 +67,9 @@ type LoanFacilityTabProps = {
   closeImportScheduleModal: () => void;
   handleImportSchedule: () => void;
   showScheduleRowModal: boolean;
-  setShowScheduleRowModal: (value: boolean) => void;
+  onCloseScheduleRowModal: () => void;
+  scheduleRowModalTitle: string;
+  scheduleRowSubmitLabel: string;
   scheduleForm: {
     startDate: string;
     endDate: string;
@@ -137,7 +139,9 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     closeImportScheduleModal,
     handleImportSchedule,
     showScheduleRowModal,
-    setShowScheduleRowModal,
+    onCloseScheduleRowModal,
+    scheduleRowModalTitle,
+    scheduleRowSubmitLabel,
     scheduleForm,
     setScheduleForm,
     availableBankAccounts,
@@ -866,7 +870,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
             {showScheduleRowModal && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                 <div className={`rounded-lg p-6 w-full max-w-2xl ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
-                  <h3 className="text-xl font-semibold mb-4">Add Schedule Row</h3>
+                  <h3 className="text-xl font-semibold mb-4">{scheduleRowModalTitle}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
@@ -1041,7 +1045,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                   <div className="flex gap-3 mt-6">
                     <button
                       type="button"
-                      onClick={() => setShowScheduleRowModal(false)}
+                      onClick={onCloseScheduleRowModal}
                       className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
                         isDarkMode
                           ? "bg-gray-700 hover:bg-gray-600 text-white"
@@ -1055,7 +1059,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                       onClick={handleSaveScheduleRow}
                       className="flex-1 px-4 py-2 rounded-lg font-medium transition bg-indigo-600 hover:bg-indigo-700 text-white"
                     >
-                      Save Row
+                      {scheduleRowSubmitLabel}
                     </button>
                   </div>
                 </div>
