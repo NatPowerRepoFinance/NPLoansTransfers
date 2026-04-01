@@ -205,13 +205,33 @@ export const getLoanFacilitySchedule = async (
 
   return rawSchedule.map((row: any, index: number) => ({
     id: String(row?.id ?? row?.scheduleId ?? index + 1),
+    rowIndex: Number(row?.rowIndex ?? row?.row_index ?? index + 1),
     startDate: String(row?.startDate ?? row?.start_date ?? ""),
     endDate: String(row?.endDate ?? row?.end_date ?? ""),
     lenderBankAccount: String(row?.lenderBankAccount ?? row?.lender_bank_account ?? ""),
     borrowerBankAccount: String(row?.borrowerBankAccount ?? row?.borrower_bank_account ?? ""),
-    annualInterestRate: Number(row?.annualInterestRate ?? row?.annual_interest_rate ?? 0),
+    annualInterestRate: Number(
+      row?.annualInterestRate ??
+        row?.annualInterestRatePct ??
+        row?.annual_interest_rate ??
+        row?.annual_interest_rate_pct ??
+        0,
+    ),
+    annualInterestRatePct: Number(
+      row?.annualInterestRatePct ??
+        row?.annualInterestRate ??
+        row?.annual_interest_rate_pct ??
+        row?.annual_interest_rate ??
+        0,
+    ),
+    days: Number(row?.days ?? 0),
     drawDown: Number(row?.drawDown ?? row?.draw_down ?? 0),
     repayment: Number(row?.repayment ?? 0),
+    principal: Number(row?.principal ?? 0),
+    cumulativePrincipal: Number(row?.cumulativePrincipal ?? row?.cumulative_principal ?? 0),
+    interest: Number(row?.interest ?? 0),
+    cumulativeInterest: Number(row?.cumulativeInterest ?? row?.cumulative_interest ?? 0),
+    total: Number(row?.total ?? 0),
     fees: Number(row?.fees ?? 0),
     updatedAt: String(row?.updatedAt ?? row?.updated_at ?? new Date().toISOString()),
   }));

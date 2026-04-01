@@ -5,13 +5,21 @@ export type CompanyType = 'Internal' | 'Shareholder' | '3rd Party'
 
 export interface ScheduleItem {
   id: string
+  rowIndex?: number
   startDate: string
   endDate: string
   lenderBankAccount: string
   borrowerBankAccount: string
   annualInterestRate: number
+  annualInterestRatePct?: number
+  days?: number
   drawDown: number
   repayment: number
+  principal?: number
+  cumulativePrincipal?: number
+  interest?: number
+  cumulativeInterest?: number
+  total?: number
   fees: number
   updatedAt: string
 }

@@ -1126,7 +1126,10 @@ export default function Home() {
       const repayment = Number(row?.repayment ?? 0);
       const fees = Number(row?.fees ?? 0);
       const annualInterestRate = Number(
-        row?.annualInterestRate ?? currentLoan?.annualInterestRate ?? 0
+        row?.annualInterestRate ??
+          row?.annualInterestRatePct ??
+          currentLoan?.annualInterestRate ??
+          0
       );
       const startDate = String(row?.startDate ?? "");
       const endDate = String(row?.endDate ?? "");
@@ -1160,7 +1163,7 @@ export default function Home() {
 
       return {
         id: String(row?.id ?? `${index + 1}`),
-        scheduleIndex: Number(row?.scheduleIndex ?? index + 1),
+        scheduleIndex: Number(row?.rowIndex ?? row?.scheduleIndex ?? index + 1),
         startDate,
         endDate,
         lenderBankAccount: String(row?.lenderBankAccount ?? ""),
