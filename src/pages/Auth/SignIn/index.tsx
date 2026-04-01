@@ -11,20 +11,47 @@ import {
 const msalInstance = new PublicClientApplication(msalConfig);
 const msalInitPromise = msalInstance.initialize();
 
+const isBenignMsalAuthError = (error: unknown): boolean => {
+  const errorCode =
+    typeof error === "object" && error !== null && "errorCode" in error
+      ? String((error as { errorCode?: unknown }).errorCode ?? "")
+      : "";
+
+  return errorCode === "hash_empty_error";
+};
+
 const AuthLogin = () => {
 	const { setToken, setRefreshToken } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
     const [error, setError] = useState<string | null>(null);
+    const [isSigningIn, setIsSigningIn] = useState(false);
 
     const isAdminIntent = new URLSearchParams(location.search).get("admin") === "1";
 
     const handleMsalSignIn = async () => {
+        if (isSigningIn) {
+          return;
+        }
+
+        setIsSigningIn(true);
+        setError(null);
+
         try {
         
           // Ensure MSAL is initialized before calling any other MSAL API
           await msalInitPromise;
+
+          // Let MSAL finish redirect hash processing before any interactive call.
+          try {
+            await msalInstance.handleRedirectPromise();
+          } catch (redirectError) {
+            if (!isBenignMsalAuthError(redirectError)) {
+              throw redirectError;
+            }
+          }
+
           const request = {
             ...loginRequest,
             redirectUri: `${window.location.origin}/blank.html`,
@@ -38,9 +65,9 @@ const AuthLogin = () => {
                 ...request,
                 account: accounts[0],
               });
-            } catch (error: any) {
-              if (!(error instanceof InteractionRequiredAuthError)) {
-                throw error;
+            } catch (silentError: any) {
+              if (!(silentError instanceof InteractionRequiredAuthError)) {
+                throw silentError;
               }
             }
           }
@@ -97,10 +124,20 @@ const AuthLogin = () => {
         } catch (error: any) {
           // MSAL may throw a benign hash_empty_error when there is no hash to process.
           // For popup flows this can be safely ignored and should not log as an error.
-        
+          if (isBenignMsalAuthError(error)) {
+            return;
+          }
+
+          const errorCode = String(error?.errorCode ?? "");
+          if (errorCode === "interaction_in_progress") {
+            setError("Authentication is already in progress. Please wait and try again.");
+            return;
+          }
+
+          setError("Sign-in failed. Please try again.");
           console.error("Error during MSAL sign-in flow:", error);
         } finally {
-         
+          setIsSigningIn(false);
         }
       };
 
@@ -120,9 +157,10 @@ const AuthLogin = () => {
 					<button
 						type="button"
 						onClick={handleMsalSignIn}
+            disabled={isSigningIn}
 						className="inline-flex items-center justify-center gap-3 rounded-full bg-emerald-500 px-10 py-2.5 text-sm font-semibold text-white shadow-[0_14px_35px_rgba(16,185,129,0.75)] transition-transform transition-colors duration-200 hover:bg-emerald-600 hover:translate-y-[1px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#050816]"
 					>
-						<span>Sign in with Microsoft</span>
+						<span>{isSigningIn ? "Signing in..." : "Sign in with Microsoft"}</span>
 						<span className="relative flex h-4 w-4 overflow-hidden rounded-sm">
 							<span className="absolute inset-0 grid grid-cols-2 grid-rows-2">
 								<span className="bg-[#f25022]" />
