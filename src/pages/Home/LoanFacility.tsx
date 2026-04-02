@@ -412,7 +412,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
 
         {showLoanFacilityHistoryModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className={`rounded-lg p-6 w-full max-w-2xl ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
+            <div className={`rounded-lg p-6 w-full max-w-2xl h-[75vh] flex flex-col ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-semibold">Loan Facility Change History</h3>
                 <button
@@ -426,7 +426,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                   Close
                 </button>
               </div>
-              <div className={`rounded-lg border overflow-hidden ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
+              <div className={`rounded-lg border overflow-y-auto flex-1 ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
                 <table className="w-full text-sm [border-collapse:separate] [border-spacing:0] [&_th]:tracking-wide [&_th]:uppercase [&_th]:text-[11px] [&_th]:font-bold [&_td]:align-middle [&_th]:border [&_td]:border [&_th]:border-slate-300/40 [&_td]:border-slate-300/30">
                   <thead className={`${isDarkMode ? "bg-gray-700" : "bg-gray-100"}`}>
                     <tr>
