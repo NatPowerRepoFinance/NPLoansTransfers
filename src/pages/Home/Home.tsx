@@ -203,6 +203,11 @@ export default function Home() {
     { id: 2, name: "United Kingdom", countryCode: "GB" },
     { id: 3, name: "India", countryCode: "IN" },
   ]);
+
+  const ADMIN_TABLE_PAGE_SIZE = 10;
+  const [companiesPage, setCompaniesPage] = useState(0);
+  const [countriesPage, setCountriesPage] = useState(0);
+  const [usersPage, setUsersPage] = useState(0);
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [userFormData, setUserFormData] = useState({ firstName: "", lastName: "", email: "", role: "", country: "" });
@@ -251,6 +256,37 @@ export default function Home() {
       ? "bg-rose-500/15 border-rose-400/35 text-rose-300 hover:bg-rose-500/25 focus-visible:ring-rose-400"
       : "bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 focus-visible:ring-rose-300"
   }`;
+
+  const companiesTotalPages = Math.max(1, Math.ceil(companies.length / ADMIN_TABLE_PAGE_SIZE));
+  const countriesTotalPages = Math.max(1, Math.ceil(countries.length / ADMIN_TABLE_PAGE_SIZE));
+  const usersTotalPages = Math.max(1, Math.ceil(users.length / ADMIN_TABLE_PAGE_SIZE));
+
+  const pagedCompanies = useMemo(() => {
+    const startIndex = companiesPage * ADMIN_TABLE_PAGE_SIZE;
+    return companies.slice(startIndex, startIndex + ADMIN_TABLE_PAGE_SIZE);
+  }, [companies, companiesPage]);
+
+  const pagedCountries = useMemo(() => {
+    const startIndex = countriesPage * ADMIN_TABLE_PAGE_SIZE;
+    return countries.slice(startIndex, startIndex + ADMIN_TABLE_PAGE_SIZE);
+  }, [countries, countriesPage]);
+
+  const pagedUsers = useMemo(() => {
+    const startIndex = usersPage * ADMIN_TABLE_PAGE_SIZE;
+    return users.slice(startIndex, startIndex + ADMIN_TABLE_PAGE_SIZE);
+  }, [users, usersPage]);
+
+  useEffect(() => {
+    setCompaniesPage((previous) => Math.min(previous, Math.max(0, companiesTotalPages - 1)));
+  }, [companiesTotalPages]);
+
+  useEffect(() => {
+    setCountriesPage((previous) => Math.min(previous, Math.max(0, countriesTotalPages - 1)));
+  }, [countriesTotalPages]);
+
+  useEffect(() => {
+    setUsersPage((previous) => Math.min(previous, Math.max(0, usersTotalPages - 1)));
+  }, [usersTotalPages]);
 
 
   useEffect(() => {
@@ -939,9 +975,21 @@ export default function Home() {
 
   const formatDate = (value?: string) => {
     if (!value) return "-";
-    const parsed = new Date(value);
+    const normalized = String(value).trim();
+    if (!normalized || normalized === "-") return "-";
+
+    const isoMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoMatch) {
+      const [, year, month, day] = isoMatch;
+      return `${day}/${month}/${year}`;
+    }
+
+    const parsed = new Date(normalized);
     if (Number.isNaN(parsed.getTime())) return "-";
-    return parsed.toLocaleDateString("en-GB");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const year = parsed.getFullYear();
+    return `${day}/${month}/${year}`;
   };
 
   const formatCurrency = (value: number) =>
@@ -1029,6 +1077,11 @@ export default function Home() {
       !scheduleForm.borrowerBankAccount
     ) {
       toast.error("Please complete all required schedule fields.");
+      return;
+    }
+
+    if (scheduleForm.endDate < scheduleForm.startDate) {
+      toast.error("End Date cannot be earlier than Start Date.");
       return;
     }
 
@@ -1402,7 +1455,7 @@ export default function Home() {
     }
 
     return columns;
-  }, [isViewer, canEdit, canDelete, isDarkMode]);
+  }, [isViewer, canEdit, canDelete, isDarkMode, selectedLoanId, selectedLoanFacility, loans]);
 
   const editSchedule = (row: DrawDownRow) => {
     setEditingScheduleRowId(String(row.id));
@@ -1421,11 +1474,6 @@ export default function Home() {
   };
 
   const deleteSchedule = async (row: DrawDownRow) => {
-    if (!selectedLoanFacility) {
-      toast.error("Please select a Loan Facility first.");
-      return;
-    }
-
     const shouldDelete = window.confirm(
       `Delete schedule row ${row.scheduleIndex}? This action cannot be undone.`,
     );
@@ -1441,7 +1489,16 @@ export default function Home() {
         return;
       }
 
-      const loanFacilityId = String(selectedLoanId);
+      const fallbackLoan = loans.find((loan) =>
+        Array.isArray(loan.schedule)
+          ? loan.schedule.some((scheduleRow: any) => String(scheduleRow?.id) === String(row.id))
+          : false,
+      );
+      const loanFacilityId = String(selectedLoanId || fallbackLoan?.id || "");
+      if (!loanFacilityId) {
+        toast.error("Please select a Loan Facility first.");
+        return;
+      }
       await deleteLoanFacilityScheduleRow(poAccessToken, loanFacilityId, String(row.id));
 
       const updatedSchedule = await getLoanFacilitySchedule(poAccessToken, loanFacilityId);
@@ -1588,7 +1645,6 @@ export default function Home() {
   
   const handleNewLoanFacility = () => {
     setIsCreatingLoan(true);
-    setSelectedLoanId("");
    
      setLoanForm({
       ...emptyLoanForm,
@@ -1635,6 +1691,13 @@ export default function Home() {
       return;
     }
 
+    const shouldDelete = window.confirm(
+      "Are you sure you want to delete this Loan Facility?",
+    );
+    if (!shouldDelete) {
+      return;
+    }
+
     setLoans((prev) => prev.filter((loan) => String(loan.id) !== String(selectedLoanId)));
     setSelectedLoanId("");
     toast.success("Loan Facility deleted successfully.");
@@ -1651,9 +1714,20 @@ export default function Home() {
         ID: selectedLoanFacility.id,
         Name: selectedLoanFacility.name,
         Status: loanFacilityFieldValue(["status"]),
+        "Start Date": formatDate(
+          loanFacilityFieldValue(
+            ["startDate", "start_date", "agreementDate", "agreement_date"],
+            "-"
+          )
+        ),
+        "Close Date": formatDate(
+          loanFacilityFieldValue(["closeDate", "close_date"], "-")
+        ),
         Lender: loanFacilityFieldValue(["lender", "lenderName"]),
         Borrower: loanFacilityFieldValue(["borrower", "borrowerName"]),
-        "Agreement Date": loanFacilityFieldValue(["agreementDate", "agreement_date"], "-"),
+        "Agreement Date": formatDate(
+          loanFacilityFieldValue(["agreementDate", "agreement_date"], "-")
+        ),
         Currency: loanFacilityFieldValue(["currency"]),
         "Annual Interest Rate %": loanFacilityFieldValue(
           ["annualInterestRate", "annual_interest_rate"],
@@ -1709,11 +1783,26 @@ export default function Home() {
       head: [["Field", "Value"]],
       body: [
         ["Status", loanFacilityFieldValue(["status"])],
+        [
+          "Start Date",
+          formatDate(
+            loanFacilityFieldValue(
+              ["startDate", "start_date", "agreementDate", "agreement_date"],
+              "-"
+            )
+          ),
+        ],
+        [
+          "Close Date",
+          formatDate(
+            loanFacilityFieldValue(["closeDate", "close_date"], "-")
+          ),
+        ],
         ["Lender", loanFacilityFieldValue(["lender", "lenderName"])],
         ["Borrower", loanFacilityFieldValue(["borrower", "borrowerName"])],
         [
           "Agreement Date",
-          loanFacilityFieldValue(["agreementDate", "agreement_date"], "-"),
+          formatDate(loanFacilityFieldValue(["agreementDate", "agreement_date"], "-")),
         ],
         ["Currency", loanFacilityFieldValue(["currency"])],
         [
@@ -1996,6 +2085,7 @@ export default function Home() {
           daysInYear: Number(loanForm.daysInYear),
           status: loanForm.status,
         });
+        toast.success("Loan Facility updated successfully.");
       } else {
         await createLoanFacility(poAccessToken, {
           name: loanForm.facilityName.trim(),
@@ -2007,11 +2097,23 @@ export default function Home() {
           daysInYear: Number(loanForm.daysInYear),
           status: loanForm.status,
         });
+        setSelectedLoanId("");
+        toast.success("Loan Facility created successfully.");
       }
 
       setIsCreatingLoan(false)
       setShowLoanFacilityModal(false)
       await loadAllData()
+      if (!isCreatingLoan && selectedLoanId) {
+        const latestSchedule = await getLoanFacilitySchedule(poAccessToken, String(selectedLoanId));
+        setLoans((prevLoans) =>
+          prevLoans.map((loan) =>
+            String(loan.id) === String(selectedLoanId)
+              ? { ...loan, schedule: latestSchedule }
+              : loan
+          )
+        );
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Loan save failed')
     }
@@ -2236,6 +2338,7 @@ export default function Home() {
         {activeTab === "loan-facility" && (
           <LoanFacilityTab
             isDarkMode={isDarkMode}
+            isCreatingLoan={isCreatingLoan}
             visibleLoans={visibleLoans}
             selectedLoanId={selectedLoanId}
             setSelectedLoanId={setSelectedLoanId}
@@ -2502,7 +2605,7 @@ export default function Home() {
                         </td>
                       </tr>
                     ) : (
-                      companies.map((company) => (
+                      pagedCompanies.map((company) => (
                         <tr
                           key={company.id}
                           className={`border-b ${
@@ -2579,6 +2682,60 @@ export default function Home() {
                   </tbody>
                 </table>
               </div>
+
+              {companies.length > 0 && (
+                <div className={`flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between px-4 py-3 border-t ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
+                  <div className={`text-xs ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Showing{" "}
+                    <span className="font-semibold">
+                      {companiesPage * ADMIN_TABLE_PAGE_SIZE + 1}
+                    </span>
+                    {" "}-{" "}
+                    <span className="font-semibold">
+                      {Math.min(companies.length, (companiesPage + 1) * ADMIN_TABLE_PAGE_SIZE)}
+                    </span>{" "}
+                    of <span className="font-semibold">{companies.length}</span>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCompaniesPage((p) => Math.max(0, p - 1))}
+                      disabled={companiesPage === 0}
+                      className={`h-9 px-3 rounded-lg text-xs font-semibold border transition ${
+                        companiesPage === 0
+                          ? isDarkMode
+                            ? "bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed"
+                            : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                          : isDarkMode
+                          ? "bg-gray-800 text-gray-100 border-gray-700 hover:bg-gray-700"
+                          : "bg-white text-gray-900 border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      Prev
+                    </button>
+                    <div className={`text-xs font-semibold ${isDarkMode ? "text-gray-200" : "text-gray-800"}`}>
+                      Page {companiesPage + 1} of {companiesTotalPages}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCompaniesPage((p) => Math.min(companiesTotalPages - 1, p + 1))}
+                      disabled={companiesPage >= companiesTotalPages - 1}
+                      className={`h-9 px-3 rounded-lg text-xs font-semibold border transition ${
+                        companiesPage >= companiesTotalPages - 1
+                          ? isDarkMode
+                            ? "bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed"
+                            : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                          : isDarkMode
+                          ? "bg-gray-800 text-gray-100 border-gray-700 hover:bg-gray-700"
+                          : "bg-white text-gray-900 border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Add/Edit Modal */}
@@ -2915,7 +3072,7 @@ export default function Home() {
                         </td>
                       </tr>
                     ) : (
-                      countries.map((country) => (
+                      pagedCountries.map((country) => (
                         <tr
                           key={country.id}
                           className={`border-b ${
@@ -2971,6 +3128,60 @@ export default function Home() {
                   </tbody>
                 </table>
               </div>
+
+              {countries.length > 0 && (
+                <div className={`flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between px-4 py-3 border-t ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
+                  <div className={`text-xs ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Showing{" "}
+                    <span className="font-semibold">
+                      {countriesPage * ADMIN_TABLE_PAGE_SIZE + 1}
+                    </span>
+                    {" "}-{" "}
+                    <span className="font-semibold">
+                      {Math.min(countries.length, (countriesPage + 1) * ADMIN_TABLE_PAGE_SIZE)}
+                    </span>{" "}
+                    of <span className="font-semibold">{countries.length}</span>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCountriesPage((p) => Math.max(0, p - 1))}
+                      disabled={countriesPage === 0}
+                      className={`h-9 px-3 rounded-lg text-xs font-semibold border transition ${
+                        countriesPage === 0
+                          ? isDarkMode
+                            ? "bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed"
+                            : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                          : isDarkMode
+                          ? "bg-gray-800 text-gray-100 border-gray-700 hover:bg-gray-700"
+                          : "bg-white text-gray-900 border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      Prev
+                    </button>
+                    <div className={`text-xs font-semibold ${isDarkMode ? "text-gray-200" : "text-gray-800"}`}>
+                      Page {countriesPage + 1} of {countriesTotalPages}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCountriesPage((p) => Math.min(countriesTotalPages - 1, p + 1))}
+                      disabled={countriesPage >= countriesTotalPages - 1}
+                      className={`h-9 px-3 rounded-lg text-xs font-semibold border transition ${
+                        countriesPage >= countriesTotalPages - 1
+                          ? isDarkMode
+                            ? "bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed"
+                            : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                          : isDarkMode
+                          ? "bg-gray-800 text-gray-100 border-gray-700 hover:bg-gray-700"
+                          : "bg-white text-gray-900 border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {showCountryModal && (
@@ -3238,7 +3449,7 @@ export default function Home() {
                         </td>
                       </tr>
                     ) : (
-                      users.map((user) => (
+                      pagedUsers.map((user) => (
                         <tr
                           key={user.id}
                           className={`border-b ${
@@ -3308,6 +3519,60 @@ export default function Home() {
                   </tbody>
                 </table>
               </div>
+
+              {users.length > 0 && (
+                <div className={`flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between px-4 py-3 border-t ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
+                  <div className={`text-xs ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Showing{" "}
+                    <span className="font-semibold">
+                      {usersPage * ADMIN_TABLE_PAGE_SIZE + 1}
+                    </span>
+                    {" "}-{" "}
+                    <span className="font-semibold">
+                      {Math.min(users.length, (usersPage + 1) * ADMIN_TABLE_PAGE_SIZE)}
+                    </span>{" "}
+                    of <span className="font-semibold">{users.length}</span>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setUsersPage((p) => Math.max(0, p - 1))}
+                      disabled={usersPage === 0}
+                      className={`h-9 px-3 rounded-lg text-xs font-semibold border transition ${
+                        usersPage === 0
+                          ? isDarkMode
+                            ? "bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed"
+                            : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                          : isDarkMode
+                          ? "bg-gray-800 text-gray-100 border-gray-700 hover:bg-gray-700"
+                          : "bg-white text-gray-900 border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      Prev
+                    </button>
+                    <div className={`text-xs font-semibold ${isDarkMode ? "text-gray-200" : "text-gray-800"}`}>
+                      Page {usersPage + 1} of {usersTotalPages}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setUsersPage((p) => Math.min(usersTotalPages - 1, p + 1))}
+                      disabled={usersPage >= usersTotalPages - 1}
+                      className={`h-9 px-3 rounded-lg text-xs font-semibold border transition ${
+                        usersPage >= usersTotalPages - 1
+                          ? isDarkMode
+                            ? "bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed"
+                            : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                          : isDarkMode
+                          ? "bg-gray-800 text-gray-100 border-gray-700 hover:bg-gray-700"
+                          : "bg-white text-gray-900 border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {showUserHistoryModal && (

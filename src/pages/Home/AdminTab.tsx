@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PlusIcon, PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { toast } from "react-toastify";
 
@@ -22,6 +22,7 @@ interface AdminTabProps {
 }
 
 export default function AdminTab({ isDarkMode }: AdminTabProps) {
+  const ADMIN_TABLE_PAGE_SIZE = 10;
   const [companies, setCompanies] = useState<Company[]>([
     {
       id: "1",
@@ -42,6 +43,7 @@ export default function AdminTab({ isDarkMode }: AdminTabProps) {
   ]);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [companiesPage, setCompaniesPage] = useState(0);
   const [formData, setFormData] = useState({
     name: "",
     sapCode: "",
@@ -58,6 +60,28 @@ export default function AdminTab({ isDarkMode }: AdminTabProps) {
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [editingCountryId, setEditingCountryId] = useState<number | null>(null);
   const [countryFormData, setCountryFormData] = useState({ name: "", countryCode: "" });
+  const [countriesPage, setCountriesPage] = useState(0);
+
+  const companiesTotalPages = Math.max(1, Math.ceil(companies.length / ADMIN_TABLE_PAGE_SIZE));
+  const countriesTotalPages = Math.max(1, Math.ceil(countries.length / ADMIN_TABLE_PAGE_SIZE));
+
+  const pagedCompanies = useMemo(() => {
+    const startIndex = companiesPage * ADMIN_TABLE_PAGE_SIZE;
+    return companies.slice(startIndex, startIndex + ADMIN_TABLE_PAGE_SIZE);
+  }, [companies, companiesPage]);
+
+  const pagedCountries = useMemo(() => {
+    const startIndex = countriesPage * ADMIN_TABLE_PAGE_SIZE;
+    return countries.slice(startIndex, startIndex + ADMIN_TABLE_PAGE_SIZE);
+  }, [countries, countriesPage]);
+
+  useEffect(() => {
+    setCompaniesPage((previous) => Math.min(previous, Math.max(0, companiesTotalPages - 1)));
+  }, [companiesTotalPages]);
+
+  useEffect(() => {
+    setCountriesPage((previous) => Math.min(previous, Math.max(0, countriesTotalPages - 1)));
+  }, [countriesTotalPages]);
 
   const handleOpenModal = (company?: Company) => {
     if (company) {
@@ -276,7 +300,7 @@ export default function AdminTab({ isDarkMode }: AdminTabProps) {
                   </td>
                 </tr>
               ) : (
-                companies.map((company) => (
+                pagedCompanies.map((company) => (
                   <tr
                     key={company.id}
                     className={`border-b ${
@@ -361,6 +385,57 @@ export default function AdminTab({ isDarkMode }: AdminTabProps) {
             </tbody>
           </table>
         </div>
+
+        {companies.length > 0 && (
+          <div className={`flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between px-4 py-3 border-t ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
+            <div className={`text-xs ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+              Showing{" "}
+              <span className="font-semibold">{companiesPage * ADMIN_TABLE_PAGE_SIZE + 1}</span>
+              {" "}-{" "}
+              <span className="font-semibold">
+                {Math.min(companies.length, (companiesPage + 1) * ADMIN_TABLE_PAGE_SIZE)}
+              </span>{" "}
+              of <span className="font-semibold">{companies.length}</span>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCompaniesPage((p) => Math.max(0, p - 1))}
+                disabled={companiesPage === 0}
+                className={`h-9 px-3 rounded-lg text-xs font-semibold border transition ${
+                  companiesPage === 0
+                    ? isDarkMode
+                      ? "bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed"
+                      : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                    : isDarkMode
+                    ? "bg-gray-800 text-gray-100 border-gray-700 hover:bg-gray-700"
+                    : "bg-white text-gray-900 border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                Prev
+              </button>
+              <div className={`text-xs font-semibold ${isDarkMode ? "text-gray-200" : "text-gray-800"}`}>
+                Page {companiesPage + 1} of {companiesTotalPages}
+              </div>
+              <button
+                type="button"
+                onClick={() => setCompaniesPage((p) => Math.min(companiesTotalPages - 1, p + 1))}
+                disabled={companiesPage >= companiesTotalPages - 1}
+                className={`h-9 px-3 rounded-lg text-xs font-semibold border transition ${
+                  companiesPage >= companiesTotalPages - 1
+                    ? isDarkMode
+                      ? "bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed"
+                      : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                    : isDarkMode
+                    ? "bg-gray-800 text-gray-100 border-gray-700 hover:bg-gray-700"
+                    : "bg-white text-gray-900 border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className={`rounded-lg p-8 mt-6 ${isDarkMode ? "bg-gray-800" : "bg-gray-50"}`}>
@@ -432,7 +507,7 @@ export default function AdminTab({ isDarkMode }: AdminTabProps) {
                   </td>
                 </tr>
               ) : (
-                countries.map((country) => (
+                pagedCountries.map((country) => (
                   <tr
                     key={country.id}
                     className={`border-b ${
@@ -496,6 +571,57 @@ export default function AdminTab({ isDarkMode }: AdminTabProps) {
             </tbody>
           </table>
         </div>
+
+        {countries.length > 0 && (
+          <div className={`flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between px-4 py-3 border-t ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
+            <div className={`text-xs ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+              Showing{" "}
+              <span className="font-semibold">{countriesPage * ADMIN_TABLE_PAGE_SIZE + 1}</span>
+              {" "}-{" "}
+              <span className="font-semibold">
+                {Math.min(countries.length, (countriesPage + 1) * ADMIN_TABLE_PAGE_SIZE)}
+              </span>{" "}
+              of <span className="font-semibold">{countries.length}</span>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCountriesPage((p) => Math.max(0, p - 1))}
+                disabled={countriesPage === 0}
+                className={`h-9 px-3 rounded-lg text-xs font-semibold border transition ${
+                  countriesPage === 0
+                    ? isDarkMode
+                      ? "bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed"
+                      : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                    : isDarkMode
+                    ? "bg-gray-800 text-gray-100 border-gray-700 hover:bg-gray-700"
+                    : "bg-white text-gray-900 border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                Prev
+              </button>
+              <div className={`text-xs font-semibold ${isDarkMode ? "text-gray-200" : "text-gray-800"}`}>
+                Page {countriesPage + 1} of {countriesTotalPages}
+              </div>
+              <button
+                type="button"
+                onClick={() => setCountriesPage((p) => Math.min(countriesTotalPages - 1, p + 1))}
+                disabled={countriesPage >= countriesTotalPages - 1}
+                className={`h-9 px-3 rounded-lg text-xs font-semibold border transition ${
+                  countriesPage >= countriesTotalPages - 1
+                    ? isDarkMode
+                      ? "bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed"
+                      : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                    : isDarkMode
+                    ? "bg-gray-800 text-gray-100 border-gray-700 hover:bg-gray-700"
+                    : "bg-white text-gray-900 border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add/Edit Modal */}

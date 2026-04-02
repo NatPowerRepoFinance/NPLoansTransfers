@@ -7,6 +7,7 @@ import type { LoanFacility, LoanHistoryEntry } from "../../utils/constants";
 
 type LoanFacilityTabProps = {
   isDarkMode: boolean;
+  isCreatingLoan: boolean;
   visibleLoans: Array<{ id: string; name: string }>;
   selectedLoanId: string;
   setSelectedLoanId: (value: string) => void;
@@ -99,6 +100,7 @@ type LoanFacilityTabProps = {
 export default function LoanFacilityTab(props: LoanFacilityTabProps) {
   const {
     isDarkMode,
+    isCreatingLoan,
     visibleLoans,
     selectedLoanId,
     setSelectedLoanId,
@@ -165,9 +167,99 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     );
 
     const repaymentWithinDrawDown = repayment <= drawDown;
+    const endDateNotEarlierThanStartDate =
+      !scheduleForm.startDate ||
+      !scheduleForm.endDate ||
+      scheduleForm.endDate >= scheduleForm.startDate;
 
-    return !(hasRequiredFields && hasValidNumbers && repaymentWithinDrawDown);
+    return !(
+      hasRequiredFields &&
+      hasValidNumbers &&
+      repaymentWithinDrawDown &&
+      endDateNotEarlierThanStartDate
+    );
   })();
+  const scheduleRowValidationMessage = (() => {
+    if (
+      scheduleForm.startDate &&
+      scheduleForm.endDate &&
+      scheduleForm.endDate < scheduleForm.startDate
+    ) {
+      return "End Date cannot be earlier than Start Date.";
+    }
+
+    const drawDown = Number(scheduleForm.drawDown);
+    const repayment = Number(scheduleForm.repayment);
+    const hasValidNumbers = ![drawDown, repayment].some((value) => Number.isNaN(value));
+    if (hasValidNumbers && repayment > drawDown) {
+      return "Repayment cannot be greater than Draw Down.";
+    }
+
+    return "";
+  })();
+  const hasSelectedLoanFacility = selectedLoanId.trim().length > 0;
+  const isLoanFacilitySubmitDisabled =
+    !loanForm.facilityName.trim() ||
+    !loanForm.status ||
+    !loanForm.lenderCompanyId ||
+    !loanForm.borrowerCompanyId ||
+    !loanForm.agreementDate ||
+    !loanForm.currency;
+  const isLoanFacilityUnchanged =
+    !isCreatingLoan &&
+    !!selectedLoanFacility &&
+    loanForm.facilityName.trim() === String((selectedLoanFacility as any).name ?? "").trim() &&
+    loanForm.status === String((selectedLoanFacility as any).status ?? "") &&
+    String(loanForm.lenderCompanyId) === String((selectedLoanFacility as any).lenderCompanyId ?? "") &&
+    String(loanForm.borrowerCompanyId) === String((selectedLoanFacility as any).borrowerCompanyId ?? "") &&
+    loanForm.agreementDate === String((selectedLoanFacility as any).agreementDate ?? "") &&
+    loanForm.currency === String((selectedLoanFacility as any).currency ?? "") &&
+    Number(loanForm.annualInterestRate) === Number((selectedLoanFacility as any).annualInterestRate ?? 0) &&
+    Number(loanForm.daysInYear) === Number((selectedLoanFacility as any).daysInYear ?? 0);
+  const isLoanFacilityActionDisabled =
+    isLoanFacilitySubmitDisabled || (!isCreatingLoan && isLoanFacilityUnchanged);
+
+  const formatLoanDate = (value: string, fallback = "-") => {
+    if (!value || value.trim() === "-") {
+      return fallback;
+    }
+
+    const normalized = value.trim();
+    const isoMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoMatch) {
+      const [, year, month, day] = isoMatch;
+      return `${day}/${month}/${year}`;
+    }
+
+    const parsedDate = new Date(normalized);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return normalized;
+    }
+
+    const day = String(parsedDate.getDate()).padStart(2, "0");
+    const month = String(parsedDate.getMonth() + 1).padStart(2, "0");
+    const year = parsedDate.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  const formatHistoryTimestamp = (value?: string) => {
+    if (!value) {
+      return "-";
+    }
+    const parsedDate = new Date(value);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return "-";
+    }
+    return parsedDate.toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+  };
 
   return (
     <div
@@ -348,10 +440,15 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
             <button
               type="button"
               onClick={handleEditLoanFacility}
-              className={`px-3.5 py-2 rounded-xl text-sm font-semibold border transition-all shadow-sm hover:-translate-y-[1px] ${
-                isDarkMode
-                  ? "bg-indigo-500/15 border-indigo-400/30 text-indigo-200 hover:bg-indigo-500/25"
-                  : "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
+              disabled={!hasSelectedLoanFacility}
+              className={`px-3.5 py-2 rounded-xl text-sm font-semibold border transition-all shadow-sm ${
+                !hasSelectedLoanFacility
+                  ? isDarkMode
+                    ? "bg-gray-700 border-gray-600 text-gray-500 cursor-not-allowed"
+                    : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                  : isDarkMode
+                  ? "bg-indigo-500/15 border-indigo-400/30 text-indigo-200 hover:bg-indigo-500/25 hover:-translate-y-[1px]"
+                  : "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 hover:-translate-y-[1px]"
               }`}
             >
               Edit
@@ -359,10 +456,15 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
             <button
               type="button"
               onClick={handleDeleteLoanFacility}
-              className={`px-3.5 py-2 rounded-xl text-sm font-semibold border transition-all shadow-sm hover:-translate-y-[1px] ${
-                isDarkMode
-                  ? "bg-rose-500/15 border-rose-400/30 text-rose-200 hover:bg-rose-500/25"
-                  : "bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100"
+              disabled={!hasSelectedLoanFacility}
+              className={`px-3.5 py-2 rounded-xl text-sm font-semibold border transition-all shadow-sm ${
+                !hasSelectedLoanFacility
+                  ? isDarkMode
+                    ? "bg-gray-700 border-gray-600 text-gray-500 cursor-not-allowed"
+                    : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                  : isDarkMode
+                  ? "bg-rose-500/15 border-rose-400/30 text-rose-200 hover:bg-rose-500/25 hover:-translate-y-[1px]"
+                  : "bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 hover:-translate-y-[1px]"
               }`}
             >
               Delete
@@ -466,7 +568,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                           className={`border-t ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}
                         >
                           <td className="px-4 py-3 text-sm">
-                            {entry.timestamp ? new Date(entry.timestamp).toLocaleString() : "-"}
+                            {formatHistoryTimestamp(entry.timestamp)}
                           </td>
                           <td className="px-4 py-3 text-sm">{entry.userName || "System"}</td>
                           <td className="px-4 py-3 text-sm font-medium">
@@ -489,12 +591,14 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
         {showLoanFacilityModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className={`rounded-lg p-6 w-full max-w-3xl ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
-              <h3 className="text-xl font-semibold mb-4">Add Loan Facility</h3>
+              <h3 className="text-xl font-semibold mb-4">
+                {isCreatingLoan ? "Add Loan Facility" : "Edit Loan Facility"}
+              </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                    Facility Name
+                    Facility Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -513,7 +617,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
 
                 <div>
                   <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                    Status
+                    Status <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={loanForm.status}
@@ -536,7 +640,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
 
                 <div>
                   <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                    Lender
+                    Lender <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={loanForm.lenderCompanyId}
@@ -558,7 +662,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
 
                 <div>
                   <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                    Borrower
+                    Borrower <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={loanForm.borrowerCompanyId}
@@ -580,7 +684,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
 
                 <div>
                   <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                    Agreement Date
+                    Agreement Date <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="date"
@@ -596,7 +700,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
 
                 <div>
                   <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                    Currency
+                    Currency <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={loanForm.currency}
@@ -646,12 +750,14 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                     Days in Year
                   </label>
                   <input
-                    type="text"
+                    type="number"
+                    min={0}
+                    max={366}
                     value={loanForm.daysInYear}
                     onChange={(e) =>
                       setLoanForm((prev) => ({
                         ...prev,
-                        daysInYear: Number(e.target.value),
+                        daysInYear: Math.min(366, Math.max(0, Number(e.target.value) || 0)),
                       }))
                     }
                     placeholder="Enter days in year"
@@ -679,9 +785,16 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                 <button
                   type="button"
                   onClick={handleSaveLoanFacility}
-                  className="flex-1 px-4 py-2 rounded-lg font-medium transition bg-indigo-600 hover:bg-indigo-700 text-white"
+                  disabled={isLoanFacilityActionDisabled}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+                    isLoanFacilityActionDisabled
+                      ? isDarkMode
+                        ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                  }`}
                 >
-                  Add
+                  {isCreatingLoan ? "Add" : "Edit"}
                 </button>
               </div>
             </div>
@@ -714,11 +827,11 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 text-sm">
                 {[
                   ["Status", loanFacilityFieldValue(["status"])],
-                  ["Start Date", loanFacilityFieldValue(["startDate", "start_date", "agreementDate", "agreement_date"], "-")],
-                  ["Close Date", loanFacilityFieldValue(["closeDate", "close_date"], "-")],
+                  ["Start Date", formatLoanDate(loanFacilityFieldValue(["startDate", "start_date", "agreementDate", "agreement_date"], "-"))],
+                  ["Close Date", formatLoanDate(loanFacilityFieldValue(["closeDate", "close_date"], "-"))],
                   ["Lender", loanFacilityFieldValue(["lender", "lenderName"])],
                   ["Borrower", loanFacilityFieldValue(["borrower", "borrowerName"])],
-                  ["Agreement Date", loanFacilityFieldValue(["agreementDate", "agreement_date"], "-")],
+                  ["Agreement Date", formatLoanDate(loanFacilityFieldValue(["agreementDate", "agreement_date"], "-"))],
                   ["Currency", loanFacilityFieldValue(["currency"])],
                   ["Annual Interest Rate %", loanFacilityFieldValue(["annualInterestRate", "annual_interest_rate"], "0")],
                   ["Days in Year", loanFacilityFieldValue(["daysInYear", "days_in_year"], "365")],
@@ -895,7 +1008,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                        Start Date
+                        Start Date <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="date"
@@ -913,7 +1026,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
 
                     <div>
                       <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                        End Date
+                        End Date <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="date"
@@ -931,7 +1044,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
 
                     <div>
                       <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                        Lender Bank Account
+                        Lender Bank Account <span className="text-red-500">*</span>
                       </label>
                       <select
                         value={scheduleForm.lenderBankAccount}
@@ -958,7 +1071,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
 
                     <div>
                       <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                        Borrower Bank Account
+                        Borrower Bank Account <span className="text-red-500">*</span>
                       </label>
                       <select
                         value={scheduleForm.borrowerBankAccount}
@@ -1090,6 +1203,9 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                       {scheduleRowSubmitLabel}
                     </button>
                   </div>
+                  {scheduleRowValidationMessage && (
+                    <p className="mt-3 text-sm text-red-500">{scheduleRowValidationMessage}</p>
+                  )}
                 </div>
               </div>
             )}
