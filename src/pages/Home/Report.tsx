@@ -36,7 +36,12 @@ type ReportTabProps = {
 };
 
 export default function ReportTab({ isDarkMode, loans, companies }: ReportTabProps) {
+  const REPORT_TABLE_PAGE_SIZE = 10;
+  const reportHeaderButtonClass =
+    "flex items-center justify-center gap-1.5 h-9 px-3.5 min-w-[130px] rounded-xl text-xs font-semibold transition-all shadow-sm border border-transparent bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white";
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const [countrySummaryPage, setCountrySummaryPage] = useState(0);
+  const [loanDetailSummaryPage, setLoanDetailSummaryPage] = useState(0);
   const [apiCountrySummary, setApiCountrySummary] = useState<
     Array<{ country: string; cumulativeInterest: number; cumulativePrincipal: number; total: number }>
   >([]);
@@ -158,6 +163,10 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
   }, []);
 
   const countrySummary = apiCountrySummary.length > 0 ? apiCountrySummary : computedCountrySummary;
+  const countrySummaryTotalPages = Math.max(
+    1,
+    Math.ceil(countrySummary.length / REPORT_TABLE_PAGE_SIZE)
+  );
 
   const formatCurrency = (value: number) =>
     Number(value || 0).toLocaleString("en-GB", {
@@ -228,6 +237,30 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
   }, [loans, companies]);
   const loanDetailSummary =
     apiLoanDetailSummary.length > 0 ? apiLoanDetailSummary : computedLoanDetailSummary;
+  const loanDetailSummaryTotalPages = Math.max(
+    1,
+    Math.ceil(loanDetailSummary.length / REPORT_TABLE_PAGE_SIZE)
+  );
+  const pagedCountrySummary = useMemo(() => {
+    const startIndex = countrySummaryPage * REPORT_TABLE_PAGE_SIZE;
+    return countrySummary.slice(startIndex, startIndex + REPORT_TABLE_PAGE_SIZE);
+  }, [countrySummary, countrySummaryPage]);
+  const pagedLoanDetailSummary = useMemo(() => {
+    const startIndex = loanDetailSummaryPage * REPORT_TABLE_PAGE_SIZE;
+    return loanDetailSummary.slice(startIndex, startIndex + REPORT_TABLE_PAGE_SIZE);
+  }, [loanDetailSummary, loanDetailSummaryPage]);
+
+  useEffect(() => {
+    setCountrySummaryPage((previous) =>
+      Math.min(previous, Math.max(0, countrySummaryTotalPages - 1))
+    );
+  }, [countrySummaryTotalPages]);
+
+  useEffect(() => {
+    setLoanDetailSummaryPage((previous) =>
+      Math.min(previous, Math.max(0, loanDetailSummaryTotalPages - 1))
+    );
+  }, [loanDetailSummaryTotalPages]);
 
   const reportKpis = useMemo(() => {
     return countrySummary.reduce(
@@ -471,33 +504,21 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
             <button
               type="button"
               onClick={exportReportToExcel}
-              className={`px-3 py-2 rounded-lg text-sm font-semibold border transition shadow-sm ${
-                isDarkMode
-                  ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
-                  : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
-              }`}
+              className={reportHeaderButtonClass}
             >
               Export Excel
             </button>
             <button
               type="button"
               onClick={exportReportToPDF}
-              className={`px-3 py-2 rounded-lg text-sm font-semibold border transition shadow-sm ${
-                isDarkMode
-                  ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
-                  : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
-              }`}
+              className={reportHeaderButtonClass}
             >
               Export PDF
             </button>
             <button
               type="button"
               onClick={exportReportToPPT}
-              className={`px-3 py-2 rounded-lg text-sm font-semibold border transition shadow-sm ${
-                isDarkMode
-                  ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
-                  : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
-              }`}
+              className={reportHeaderButtonClass}
             >
               Export PPT
             </button>
@@ -546,7 +567,7 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
                   </td>
                 </tr>
               ) : (
-                countrySummary.map((row) => (
+                pagedCountrySummary.map((row) => (
                   <tr
                     key={row.country}
                     className={`border-t transition-colors ${isDarkMode ? "border-gray-700 hover:bg-white/5" : "border-gray-200 hover:bg-slate-50"}`}
@@ -561,6 +582,60 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
             </tbody>
           </table>
         </div>
+        {countrySummary.length > 0 && (
+          <div className={`flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between px-4 py-3 border-t ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
+            <div className={`text-xs ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+              Showing{" "}
+              <span className="font-semibold">
+                {countrySummaryPage * REPORT_TABLE_PAGE_SIZE + 1}
+              </span>
+              {" "}-{" "}
+              <span className="font-semibold">
+                {Math.min(countrySummary.length, (countrySummaryPage + 1) * REPORT_TABLE_PAGE_SIZE)}
+              </span>{" "}
+              of <span className="font-semibold">{countrySummary.length}</span>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCountrySummaryPage((p) => Math.max(0, p - 1))}
+                disabled={countrySummaryPage === 0}
+                className={`h-9 px-3 rounded-lg text-xs font-semibold border transition ${
+                  countrySummaryPage === 0
+                    ? isDarkMode
+                      ? "bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed"
+                      : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                    : isDarkMode
+                    ? "bg-gray-800 text-gray-100 border-gray-700 hover:bg-gray-700"
+                    : "bg-white text-gray-900 border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                Prev
+              </button>
+              <div className={`text-xs font-semibold ${isDarkMode ? "text-gray-200" : "text-gray-800"}`}>
+                Page {countrySummaryPage + 1} of {countrySummaryTotalPages}
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setCountrySummaryPage((p) => Math.min(countrySummaryTotalPages - 1, p + 1))
+                }
+                disabled={countrySummaryPage >= countrySummaryTotalPages - 1}
+                className={`h-9 px-3 rounded-lg text-xs font-semibold border transition ${
+                  countrySummaryPage >= countrySummaryTotalPages - 1
+                    ? isDarkMode
+                      ? "bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed"
+                      : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                    : isDarkMode
+                    ? "bg-gray-800 text-gray-100 border-gray-700 hover:bg-gray-700"
+                    : "bg-white text-gray-900 border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="mt-6">
           <h3 className="text-lg font-semibold mb-3">Map View</h3>
@@ -605,7 +680,7 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
                     </td>
                   </tr>
                 ) : (
-                  loanDetailSummary.map((row, index) => (
+                  pagedLoanDetailSummary.map((row, index) => (
                     <tr
                       key={`${row.country}-${row.loanFacility}-${index}`}
                       className={`border-t transition-colors ${isDarkMode ? "border-gray-700 hover:bg-white/5" : "border-gray-200 hover:bg-slate-50"}`}
@@ -623,6 +698,62 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
               </tbody>
             </table>
           </div>
+          {loanDetailSummary.length > 0 && (
+            <div className={`flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between px-4 py-3 border-t ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
+              <div className={`text-xs ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                Showing{" "}
+                <span className="font-semibold">
+                  {loanDetailSummaryPage * REPORT_TABLE_PAGE_SIZE + 1}
+                </span>
+                {" "}-{" "}
+                <span className="font-semibold">
+                  {Math.min(loanDetailSummary.length, (loanDetailSummaryPage + 1) * REPORT_TABLE_PAGE_SIZE)}
+                </span>{" "}
+                of <span className="font-semibold">{loanDetailSummary.length}</span>
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLoanDetailSummaryPage((p) => Math.max(0, p - 1))}
+                  disabled={loanDetailSummaryPage === 0}
+                  className={`h-9 px-3 rounded-lg text-xs font-semibold border transition ${
+                    loanDetailSummaryPage === 0
+                      ? isDarkMode
+                        ? "bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed"
+                        : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                      : isDarkMode
+                      ? "bg-gray-800 text-gray-100 border-gray-700 hover:bg-gray-700"
+                      : "bg-white text-gray-900 border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  Prev
+                </button>
+                <div className={`text-xs font-semibold ${isDarkMode ? "text-gray-200" : "text-gray-800"}`}>
+                  Page {loanDetailSummaryPage + 1} of {loanDetailSummaryTotalPages}
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setLoanDetailSummaryPage((p) =>
+                      Math.min(loanDetailSummaryTotalPages - 1, p + 1)
+                    )
+                  }
+                  disabled={loanDetailSummaryPage >= loanDetailSummaryTotalPages - 1}
+                  className={`h-9 px-3 rounded-lg text-xs font-semibold border transition ${
+                    loanDetailSummaryPage >= loanDetailSummaryTotalPages - 1
+                      ? isDarkMode
+                        ? "bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed"
+                        : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                      : isDarkMode
+                      ? "bg-gray-800 text-gray-100 border-gray-700 hover:bg-gray-700"
+                      : "bg-white text-gray-900 border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
