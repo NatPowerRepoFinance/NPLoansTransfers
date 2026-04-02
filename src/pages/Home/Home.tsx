@@ -275,6 +275,66 @@ export default function Home() {
     const startIndex = usersPage * ADMIN_TABLE_PAGE_SIZE;
     return users.slice(startIndex, startIndex + ADMIN_TABLE_PAGE_SIZE);
   }, [users, usersPage]);
+  const isCompanyFormActionDisabled =
+    !formData.name.trim() ||
+    !formData.sapCode.trim() ||
+    !formData.type.trim() ||
+    !formData.country.trim() ||
+    formData.bankAccounts.map((account) => account.trim()).filter(Boolean).length === 0;
+  const editingCompany = editingId
+    ? companies.find((company) => String(company.id) === String(editingId))
+    : null;
+  const normalizedFormBankAccounts = formData.bankAccounts
+    .map((account) => account.trim())
+    .filter(Boolean);
+  const normalizedEditingCompanyBankAccounts = editingCompany
+    ? String(editingCompany.bankAccounts ?? "")
+        .split(",")
+        .map((account) => account.trim())
+        .filter(Boolean)
+    : [];
+  const isCompanyEditUnchanged =
+    !!editingCompany &&
+    formData.name.trim() === String(editingCompany.name ?? "").trim() &&
+    formData.sapCode.trim() === String(editingCompany.sapCode ?? "").trim() &&
+    formData.type.trim() === String(editingCompany.type ?? "").trim() &&
+    formData.country.trim() === String(editingCompany.country ?? "").trim() &&
+    normalizedFormBankAccounts.length === normalizedEditingCompanyBankAccounts.length &&
+    normalizedFormBankAccounts.every(
+      (account, index) => account === normalizedEditingCompanyBankAccounts[index]
+    );
+  const isCompanyActionButtonDisabled =
+    isCompanyFormActionDisabled || (!!editingId && isCompanyEditUnchanged);
+  const editingCountry = editingCountryId !== null
+    ? countries.find((country) => country.id === editingCountryId) ?? null
+    : null;
+  const isCountryFormDisabled =
+    !countryFormData.name.trim() || !countryFormData.countryCode.trim();
+  const isCountryEditUnchanged =
+    !!editingCountry &&
+    countryFormData.name.trim() === String(editingCountry.name ?? "").trim() &&
+    countryFormData.countryCode.trim().toUpperCase() ===
+      String(editingCountry.countryCode ?? "").trim().toUpperCase();
+  const isCountryActionButtonDisabled =
+    isCountryFormDisabled || (editingCountryId !== null && isCountryEditUnchanged);
+  const editingUser = editingUserId
+    ? users.find((user) => String(user.id) === String(editingUserId)) ?? null
+    : null;
+  const isUserFormDisabled =
+    !userFormData.firstName.trim() ||
+    !userFormData.lastName.trim() ||
+    !userFormData.email.trim() ||
+    !userFormData.role.trim() ||
+    !userFormData.country.trim();
+  const isUserEditUnchanged =
+    !!editingUser &&
+    userFormData.firstName.trim() === String(editingUser.firstName ?? "").trim() &&
+    userFormData.lastName.trim() === String(editingUser.lastName ?? "").trim() &&
+    userFormData.email.trim() === String(editingUser.email ?? "").trim() &&
+    userFormData.role.trim() === String(editingUser.role ?? "").trim() &&
+    userFormData.country.trim() === String(editingUser.country ?? "").trim();
+  const isUserActionButtonDisabled =
+    isUserFormDisabled || (!!editingUserId && isUserEditUnchanged);
 
   useEffect(() => {
     setCompaniesPage((previous) => Math.min(previous, Math.max(0, companiesTotalPages - 1)));
@@ -2757,7 +2817,7 @@ export default function Home() {
                           isDarkMode ? "text-gray-300" : "text-gray-700"
                         }`}
                       >
-                        Company Name
+                        Company Name <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -2778,7 +2838,7 @@ export default function Home() {
                           isDarkMode ? "text-gray-300" : "text-gray-700"
                         }`}
                       >
-                        SAP Code
+                        SAP Code <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -2799,7 +2859,7 @@ export default function Home() {
                           isDarkMode ? "text-gray-300" : "text-gray-700"
                         }`}
                       >
-                        Type
+                        Type <span className="text-red-500">*</span>
                       </label>
                       <select
                         value={formData.type}
@@ -2823,7 +2883,7 @@ export default function Home() {
                           isDarkMode ? "text-gray-300" : "text-gray-700"
                         }`}
                       >
-                        Country
+                        Country <span className="text-red-500">*</span>
                       </label>
                       <select
                         value={formData.country}
@@ -2848,7 +2908,7 @@ export default function Home() {
                           isDarkMode ? "text-gray-300" : "text-gray-700"
                         }`}
                       >
-                        Bank Accounts
+                        Bank Accounts <span className="text-red-500">*</span>
                       </label>
                       <div className="space-y-2">
                         {formData.bankAccounts.map((account, index) => (
@@ -2930,8 +2990,13 @@ export default function Home() {
                     </button>
                     <button
                       onClick={handleSave}
+                      disabled={isCompanyActionButtonDisabled}
                       className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
-                        isDarkMode
+                        isCompanyActionButtonDisabled
+                          ? isDarkMode
+                            ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                          : isDarkMode
                           ? "bg-indigo-600 hover:bg-indigo-700 text-white"
                           : "bg-indigo-600 hover:bg-indigo-700 text-white"
                       }`}
@@ -3202,7 +3267,7 @@ export default function Home() {
                           isDarkMode ? "text-gray-300" : "text-gray-700"
                         }`}
                       >
-                        Country Name
+                        Country Name <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -3223,7 +3288,7 @@ export default function Home() {
                           isDarkMode ? "text-gray-300" : "text-gray-700"
                         }`}
                       >
-                        Country Code
+                        Country Code <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -3252,8 +3317,13 @@ export default function Home() {
                     </button>
                     <button
                       onClick={handleSaveCountry}
+                      disabled={isCountryActionButtonDisabled}
                       className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
-                        isDarkMode
+                        isCountryActionButtonDisabled
+                          ? isDarkMode
+                            ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                          : isDarkMode
                           ? "bg-indigo-600 hover:bg-indigo-700 text-white"
                           : "bg-indigo-600 hover:bg-indigo-700 text-white"
                       }`}
@@ -3656,7 +3726,7 @@ export default function Home() {
                           isDarkMode ? "text-gray-300" : "text-gray-700"
                         }`}
                       >
-                        First Name
+                        First Name <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -3677,7 +3747,7 @@ export default function Home() {
                           isDarkMode ? "text-gray-300" : "text-gray-700"
                         }`}
                       >
-                        Last Name
+                        Last Name <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -3698,7 +3768,7 @@ export default function Home() {
                           isDarkMode ? "text-gray-300" : "text-gray-700"
                         }`}
                       >
-                        Email Address
+                        Email Address <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="email"
@@ -3719,7 +3789,7 @@ export default function Home() {
                           isDarkMode ? "text-gray-300" : "text-gray-700"
                         }`}
                       >
-                        Role
+                        Role <span className="text-red-500">*</span>
                       </label>
                       <select
                         value={userFormData.role}
@@ -3743,7 +3813,7 @@ export default function Home() {
                           isDarkMode ? "text-gray-300" : "text-gray-700"
                         }`}
                       >
-                        Country
+                        Country <span className="text-red-500">*</span>
                       </label>
                       <select
                         value={userFormData.country}
@@ -3776,8 +3846,13 @@ export default function Home() {
                     </button>
                     <button
                       onClick={handleSaveUser}
+                      disabled={isUserActionButtonDisabled}
                       className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
-                        isDarkMode
+                        isUserActionButtonDisabled
+                          ? isDarkMode
+                            ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                          : isDarkMode
                           ? "bg-indigo-600 hover:bg-indigo-700 text-white"
                           : "bg-indigo-600 hover:bg-indigo-700 text-white"
                       }`}
