@@ -1793,6 +1793,7 @@ export default function Home() {
           ["annualInterestRate", "annual_interest_rate"],
           "0"
         ),
+        "Days in Year": loanFacilityFieldValue(["daysInYear", "days_in_year"], "365"),
       },
     ];
 
@@ -1868,6 +1869,10 @@ export default function Home() {
         [
           "Annual Interest Rate %",
           loanFacilityFieldValue(["annualInterestRate", "annual_interest_rate"], "0"),
+        ],
+        [
+          "Days in Year",
+          loanFacilityFieldValue(["daysInYear", "days_in_year"], "365"),
         ],
       ],
       styles: { fontSize: 9 },
