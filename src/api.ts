@@ -372,7 +372,7 @@ export const deleteLoanFacilityScheduleRow = async (
 export const createLoanFacility = async (
   poAccessToken: string,
   payload: CreateLoanFacilityPayload,
-): Promise<void> => {
+): Promise<{ id?: string }> => {
   const response = await fetch(`${API_BASE_URL}/api/v1/loan-facilities`, {
     method: "POST",
     headers: {
@@ -384,6 +384,20 @@ export const createLoanFacility = async (
 
   if (!response.ok) {
     throw new Error(`Failed to create loan facility (${response.status})`);
+  }
+
+  try {
+    const body = await response.json();
+    const createdId =
+      body?.id ??
+      body?.loanFacilityId ??
+      body?.loan_facility_id ??
+      body?.data?.id ??
+      body?.data?.loanFacilityId;
+
+    return createdId ? { id: String(createdId) } : {};
+  } catch {
+    return {};
   }
 };
 

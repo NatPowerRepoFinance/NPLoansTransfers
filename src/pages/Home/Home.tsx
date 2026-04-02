@@ -2034,6 +2034,8 @@ export default function Home() {
         details: entry.details,
       }))
     )
+
+    return { nextLoans };
   }, [])
 
   useEffect(() => {
@@ -2113,6 +2115,8 @@ export default function Home() {
 
 
      setErrorMessage(null)
+    const existingLoanIds = new Set(loans.map((loan) => String(loan.id)));
+    let createdLoanId = "";
 
     try {
       ensureEditor()
@@ -2147,7 +2151,7 @@ export default function Home() {
         });
         toast.success("Loan Facility updated successfully.");
       } else {
-        await createLoanFacility(poAccessToken, {
+        const createdLoan = await createLoanFacility(poAccessToken, {
           name: loanForm.facilityName.trim(),
           lenderCompanyId: Number(loanForm.lenderCompanyId) || 0,
           borrowerCompanyId: Number(loanForm.borrowerCompanyId) || 0,
@@ -2157,13 +2161,37 @@ export default function Home() {
           daysInYear: Number(loanForm.daysInYear),
           status: loanForm.status,
         });
-        setSelectedLoanId("");
         toast.success("Loan Facility created successfully.");
+        if (createdLoan?.id) {
+          createdLoanId = String(createdLoan.id);
+        }
       }
 
       setIsCreatingLoan(false)
       setShowLoanFacilityModal(false)
-      await loadAllData()
+      const refreshedData = await loadAllData()
+      if (isCreatingLoan) {
+        const newlyCreatedLoan =
+          (createdLoanId
+            ? refreshedData.nextLoans.find(
+                (loan) => String(loan.id) === String(createdLoanId),
+              )
+            : undefined) ??
+          refreshedData.nextLoans.find(
+            (loan) => !existingLoanIds.has(String(loan.id)),
+          ) ??
+          refreshedData.nextLoans.find(
+            (loan) =>
+              String(loan.name ?? "").trim() === loanForm.facilityName.trim() &&
+              String(loan.borrowerCompanyId ?? "") === String(loanForm.borrowerCompanyId) &&
+              String(loan.lenderCompanyId ?? "") === String(loanForm.lenderCompanyId),
+          ) ??
+          refreshedData.nextLoans.at(-1);
+
+        if (newlyCreatedLoan?.id) {
+          setSelectedLoanId(String(newlyCreatedLoan.id));
+        }
+      }
       if (!isCreatingLoan && selectedLoanId) {
         const latestSchedule = await getLoanFacilitySchedule(poAccessToken, String(selectedLoanId));
         setLoans((prevLoans) =>
