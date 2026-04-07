@@ -1,4 +1,6 @@
 import type { LoanFacility, LoanHistoryEntry, ScheduleItem } from "@/utils/constants";
+import { parseHistoryJson } from "@/utils/loanHistoryDisplay";
+import type { CompanyHistoryEntry, UserHistoryEntry } from "@/utils/constants";
 
 export const API_BASE_URL = "https://as-natpower-loans-transfer-backend-uksouth.azurewebsites.net/loan-and-transfer";
 
@@ -92,6 +94,10 @@ type CompanyHistoryApiItem = {
   summary?: string;
   beforeJson?: string | null;
   afterJson?: string | null;
+  entityType?: string | null;
+  entity_type?: string | null;
+  entityId?: number | string | null;
+  entity_id?: number | string | null;
   companyName?: string;
   company_name?: string;
   details?: string;
@@ -142,6 +148,10 @@ type UserHistoryApiItem = {
   summary?: string;
   beforeJson?: string | null;
   afterJson?: string | null;
+  entityType?: string | null;
+  entity_type?: string | null;
+  entityId?: number | string | null;
+  entity_id?: number | string | null;
   userName?: string;
   user_name?: string;
   details?: string;
@@ -323,6 +333,16 @@ export const getLoanFacilityHistory = async (
     ),
     action: String(entry?.eventType ?? entry?.action ?? "update").toUpperCase(),
     details: String(entry?.summary ?? entry?.details ?? ""),
+    entityType:
+      entry?.entityType != null || entry?.entity_type != null
+        ? String(entry?.entityType ?? entry?.entity_type)
+        : undefined,
+    entityId:
+      entry?.entityId != null || entry?.entity_id != null
+        ? String(entry?.entityId ?? entry?.entity_id)
+        : undefined,
+    beforeSnapshot: parseHistoryJson(entry?.beforeJson ?? entry?.before_json),
+    afterSnapshot: parseHistoryJson(entry?.afterJson ?? entry?.after_json),
   }));
 };
 
@@ -519,16 +539,7 @@ export const getCompanies = async (
 
 export const getCompaniesHistory = async (
   poAccessToken: string,
-): Promise<
-  Array<{
-    id: string;
-    timestamp: string;
-    action: string;
-    createdBy: string;
-    companyName: string;
-    details: string;
-  }>
-> => {
+): Promise<CompanyHistoryEntry[]> => {
   const response = await fetch(`${API_BASE_URL}/api/v1/companies/history`, {
     method: "GET",
     headers: {
@@ -546,26 +557,33 @@ export const getCompaniesHistory = async (
 
   return rows.map((entry, index) => {
     const rawEventType = String(entry?.eventType ?? entry?.action ?? "").toLowerCase();
-    const action =
+    const action: CompanyHistoryEntry["action"] =
       rawEventType === "create"
         ? "ADD"
         : rawEventType === "update"
-        ? "EDIT"
-        : rawEventType === "delete"
-        ? "DELETE"
-        : "IMPORT";
+          ? "EDIT"
+          : rawEventType === "delete"
+            ? "DELETE"
+            : "IMPORT";
 
-    let parsedCompanyName = "";
-    try {
-      const after = entry?.afterJson ? JSON.parse(entry.afterJson as string) : null;
-      const before = entry?.beforeJson ? JSON.parse(entry.beforeJson as string) : null;
-      parsedCompanyName = String(after?.name ?? before?.name ?? "").trim();
-    } catch {
-      parsedCompanyName = "";
-    }
+    const beforeSnapshot = parseHistoryJson(entry?.beforeJson);
+    const afterSnapshot = parseHistoryJson(entry?.afterJson);
+
+    const nameFromSnapshot = afterSnapshot?.name ?? beforeSnapshot?.name;
+    const parsedCompanyName = String(nameFromSnapshot ?? "").trim();
+
+    const rawEntityId = entry?.entityId ?? entry?.entity_id;
+    const entityIdStr =
+      rawEntityId != null && rawEntityId !== "" ? String(rawEntityId) : null;
+
+    const rawEntityType = entry?.entityType ?? entry?.entity_type;
+    const entityTypeStr =
+      rawEntityType != null && String(rawEntityType).trim() !== ""
+        ? String(rawEntityType)
+        : null;
 
     return {
-      id: String(entry?.id ?? index + 1),
+      id: Number.parseInt(String(entry?.id ?? index + 1), 10) || index + 1,
       timestamp: String(entry?.eventTimestamp ?? entry?.timestamp ?? ""),
       action,
       createdBy: String(entry?.performedBy ?? entry?.userName ?? "").trim() || "System",
@@ -574,6 +592,10 @@ export const getCompaniesHistory = async (
         parsedCompanyName ||
         "Company",
       details: String(entry?.summary ?? entry?.details ?? ""),
+      entityType: entityTypeStr,
+      entityId: entityIdStr,
+      beforeSnapshot,
+      afterSnapshot,
     };
   });
 };
@@ -748,18 +770,24 @@ export const getUsers = async (
   }));
 };
 
+function userLabelFromHistorySnapshot(
+  after: Record<string, unknown> | null,
+  before: Record<string, unknown> | null,
+): string {
+  const s = after ?? before;
+  if (!s) {
+    return "User";
+  }
+  const fn = String(s.firstName ?? s.first_name ?? "").trim();
+  const ln = String(s.lastName ?? s.last_name ?? "").trim();
+  const em = String(s.email ?? "").trim();
+  const name = [fn, ln].filter(Boolean).join(" ").trim();
+  return name || em || "User";
+}
+
 export const getUsersHistory = async (
   poAccessToken: string,
-): Promise<
-  Array<{
-    id: string;
-    timestamp: string;
-    action: string;
-    userName: string;
-    updatedBy: string;
-    details: string;
-  }>
-> => {
+): Promise<UserHistoryEntry[]> => {
   const response = await fetch(`${API_BASE_URL}/api/v1/users/history`, {
     method: "GET",
     headers: {
@@ -777,42 +805,44 @@ export const getUsersHistory = async (
 
   return rows.map((entry, index) => {
     const rawEventType = String(entry?.eventType ?? entry?.action ?? "").toLowerCase();
-    const action =
+    const action: UserHistoryEntry["action"] =
       rawEventType === "create"
         ? "ADD"
         : rawEventType === "update"
-        ? "EDIT"
-        : rawEventType === "delete"
-        ? "DELETE"
-        : "IMPORT";
+          ? "EDIT"
+          : rawEventType === "delete"
+            ? "DELETE"
+            : "IMPORT";
 
-    let parsedName = "";
-    let parsedUpdatedBy = "";
-    try {
-      const after = entry?.afterJson ? JSON.parse(entry.afterJson as string) : null;
-      const before = entry?.beforeJson ? JSON.parse(entry.beforeJson as string) : null;
-      parsedName = String(
-        after?.email ??
-          after?.name ??
-          after?.firstName ??
-          before?.email ??
-          before?.name ??
-          before?.firstName ??
-          "",
-      ).trim();
-      parsedUpdatedBy = String(after?.updatedBy ?? before?.updatedBy ?? "").trim();
-    } catch {
-      parsedName = "";
-      parsedUpdatedBy = "";
-    }
+    const beforeSnapshot = parseHistoryJson(entry?.beforeJson);
+    const afterSnapshot = parseHistoryJson(entry?.afterJson);
+
+    const userName =
+      userLabelFromHistorySnapshot(afterSnapshot, beforeSnapshot) ||
+      String(entry?.userName ?? entry?.user_name ?? "").trim() ||
+      "User";
+
+    const rawEntityId = entry?.entityId ?? entry?.entity_id;
+    const entityIdStr =
+      rawEntityId != null && rawEntityId !== "" ? String(rawEntityId) : null;
+
+    const rawEntityType = entry?.entityType ?? entry?.entity_type;
+    const entityTypeStr =
+      rawEntityType != null && String(rawEntityType).trim() !== ""
+        ? String(rawEntityType)
+        : null;
 
     return {
-      id: String(entry?.id ?? index + 1),
+      id: Number.parseInt(String(entry?.id ?? index + 1), 10) || index + 1,
       timestamp: String(entry?.eventTimestamp ?? entry?.timestamp ?? ""),
       action,
-      userName: parsedName || String(entry?.userName ?? entry?.user_name ?? "").trim() || "User",
-      updatedBy: parsedUpdatedBy || String(entry?.performedBy ?? "").trim() || "System",
+      performedBy: String(entry?.performedBy ?? "").trim() || "System",
+      userName,
       details: String(entry?.summary ?? entry?.details ?? ""),
+      entityType: entityTypeStr,
+      entityId: entityIdStr,
+      beforeSnapshot,
+      afterSnapshot,
     };
   });
 };

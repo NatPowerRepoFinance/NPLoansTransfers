@@ -3,9 +3,13 @@ import type { ITooltipParams } from "ag-grid-community";
 import { Bounce, toast, ToastContainer } from "react-toastify";
 import dummyData from "@/lib/api/dummyRisks.json";
 import {
+  CompanyHistoryEntry,
   LoanFacility,
   LoanHistoryEntry,
+  UserHistoryEntry,
 } from "../../utils/constants";
+import { CompanyHistoryAuditBlock } from "@/components/CompanyHistoryAuditBlock";
+import { UserHistoryAuditBlock } from "@/components/UserHistoryAuditBlock";
 import {
   TrashIcon,
   MoonIcon,
@@ -84,25 +88,69 @@ export interface Country {
   countryCode: string;
 }
 
-interface CompanyHistoryEntry {
-  id: number;
-  timestamp: string;
-  action: "ADD" | "EDIT" | "DELETE" | "IMPORT";
-  createdBy: string;
-  companyName: string;
-  details: string;
-}
-
-interface UserHistoryEntry {
-  id: number;
-  timestamp: string;
-  action: "ADD" | "EDIT" | "DELETE" | "IMPORT";
-  userName: string;
-  details: string;
-}
-
 export const toolTipValueGetter = (params: ITooltipParams) =>
   params.value == null || params.value === "" ? "- Missing -" : params.value;
+
+function companyNameFromMockCompanyHistory(details: string): string {
+  const nameEq = details.match(/Name=([^|]+)/);
+  if (nameEq) {
+    return nameEq[1].trim();
+  }
+  const added = details.match(/^Added company (.+)$/);
+  if (added) {
+    return added[1].trim();
+  }
+  const upd = details.match(/Name:\s*Before=([^|]+)/);
+  if (upd) {
+    return upd[1].trim();
+  }
+  return "Company";
+}
+
+function mockCompanyHistoryAction(action: string): CompanyHistoryEntry["action"] {
+  const a = action.toUpperCase();
+  if (a.includes("CREATE") || a === "ADD") {
+    return "ADD";
+  }
+  if (a.includes("UPDATE") || a === "EDIT") {
+    return "EDIT";
+  }
+  if (a.includes("DELETE")) {
+    return "DELETE";
+  }
+  return "IMPORT";
+}
+
+function userLabelFromMockUserHistory(details: string): string {
+  const fn = details.match(/First Name=([^|]+)/);
+  const ln = details.match(/Last Name=([^|]+)/);
+  const em = details.match(/Email=([^|]+)/);
+  const name = [fn?.[1]?.trim(), ln?.[1]?.trim()].filter(Boolean).join(" ").trim();
+  if (name) {
+    return name;
+  }
+  if (em?.[1]) {
+    return em[1].trim();
+  }
+  if (details.startsWith("Imported")) {
+    return "Bulk import";
+  }
+  return "User";
+}
+
+function mockUserHistoryAction(action: string): UserHistoryEntry["action"] {
+  const a = action.toUpperCase();
+  if (a.includes("CREATE") || a === "ADD") {
+    return "ADD";
+  }
+  if (a.includes("UPDATE") || a === "EDIT") {
+    return "EDIT";
+  }
+  if (a.includes("DELETE")) {
+    return "DELETE";
+  }
+  return "IMPORT";
+}
 
 // const rowSelection: RowSelectionOptions = {
 //     mode: "multiRow",
@@ -428,22 +476,7 @@ export default function Home() {
       }
 
       const historyRows = await getCompaniesHistory(poAccessToken);
-      setCompanyHistory(
-        historyRows.map((entry, index) => ({
-          id: Number.parseInt(entry.id, 10) || index + 1,
-          timestamp: entry.timestamp,
-          action:
-            entry.action === "ADD" ||
-            entry.action === "EDIT" ||
-            entry.action === "DELETE" ||
-            entry.action === "IMPORT"
-              ? entry.action
-              : "IMPORT",
-          createdBy: entry.createdBy || "System",
-          companyName: entry.companyName || "Company",
-          details: entry.details,
-        })),
-      );
+      setCompanyHistory(historyRows);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to fetch company history";
@@ -457,7 +490,8 @@ export default function Home() {
   const addUserHistoryEntry = (
     action: UserHistoryEntry["action"],
     userName: string,
-    details: string
+    details: string,
+    performedBy = "System",
   ) => {
     setUserHistory((prev) => [
       {
@@ -466,6 +500,7 @@ export default function Home() {
         action,
         userName,
         details,
+        performedBy,
       },
       ...prev,
     ]);
@@ -481,21 +516,7 @@ export default function Home() {
       }
 
       const historyRows = await getUsersHistory(poAccessToken);
-      setUserHistory(
-        historyRows.map((entry, index) => ({
-          id: Number.parseInt(entry.id, 10) || index + 1,
-          timestamp: entry.timestamp,
-          action:
-            entry.action === "ADD" ||
-            entry.action === "EDIT" ||
-            entry.action === "DELETE" ||
-            entry.action === "IMPORT"
-              ? entry.action
-              : "IMPORT",
-          userName: entry.userName || "User",
-          details: entry.details,
-        })),
-      );
+      setUserHistory(historyRows);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to fetch user history";
       setErrorMessage(message);
@@ -2121,33 +2142,22 @@ export default function Home() {
       nextCompanyHistory.map((entry, index) => ({
         id: Number.parseInt(String(entry.id), 10) || index + 1,
         timestamp: entry.timestamp,
-        action:
-          entry.action === "ADD" ||
-          entry.action === "EDIT" ||
-          entry.action === "DELETE" ||
-          entry.action === "IMPORT"
-            ? entry.action
-            : "IMPORT",
+        action: mockCompanyHistoryAction(entry.action),
         createdBy: entry.userName || "System",
-        companyName: entry.userName || "System",
+        companyName: companyNameFromMockCompanyHistory(entry.details),
         details: entry.details,
-      }))
+      })),
     )
 
     setUserHistory(
       nextUserHistory.map((entry, index) => ({
         id: Number.parseInt(String(entry.id), 10) || index + 1,
         timestamp: entry.timestamp,
-        action:
-          entry.action === "ADD" ||
-          entry.action === "EDIT" ||
-          entry.action === "DELETE" ||
-          entry.action === "IMPORT"
-            ? entry.action
-            : "IMPORT",
-        userName: entry.userName || "System",
+        action: mockUserHistoryAction(entry.action),
+        performedBy: entry.userName || "System",
+        userName: userLabelFromMockUserHistory(entry.details),
         details: entry.details,
-      }))
+      })),
     )
 
     return { nextLoans };
@@ -3154,11 +3164,16 @@ export default function Home() {
             )}
 
             {showCompanyHistoryModal && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div className={`rounded-lg p-6 w-full max-w-3xl ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div
+                  className={`rounded-lg p-6 w-full max-w-4xl h-[80vh] flex flex-col ${
+                    isDarkMode ? "bg-gray-800" : "bg-white"
+                  }`}
+                >
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xl font-semibold">Company Change History</h3>
                     <button
+                      type="button"
                       onClick={() => setShowCompanyHistoryModal(false)}
                       className={`px-3 py-1 rounded-md text-sm ${
                         isDarkMode
@@ -3170,48 +3185,115 @@ export default function Home() {
                     </button>
                   </div>
 
-                  <div className={`rounded-lg border overflow-hidden ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
-                    <table className="w-full text-sm [border-collapse:separate] [border-spacing:0] [&_th]:tracking-wide [&_th]:uppercase [&_th]:text-[11px] [&_th]:font-bold [&_td]:align-middle [&_th]:border [&_td]:border [&_th]:border-slate-300/40 [&_td]:border-slate-300/30">
-                      <thead className={`${isDarkMode ? "bg-gray-700" : "bg-gray-100"}`}>
-                        <tr>
-                          <th className="px-4 py-3 text-left text-sm">Time</th>
-                          <th className="px-4 py-3 text-left text-sm">Action</th>
-                          <th className="px-4 py-3 text-left text-sm">Created By</th>
-                          <th className="px-4 py-3 text-left text-sm">Company</th>
-                          <th className="px-4 py-3 text-left text-sm">Details</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {isCompanyHistoryLoading ? (
-                          <tr>
-                            <td colSpan={5} className={`px-4 py-6 text-center text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
-                              Loading history...
-                            </td>
-                          </tr>
-                        ) : companyHistory.length === 0 ? (
-                          <tr>
-                            <td colSpan={5} className={`px-4 py-6 text-center text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
-                              No history yet.
-                            </td>
-                          </tr>
-                        ) : (
-                          companyHistory.map((entry) => (
-                            <tr key={entry.id} className={`border-t ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
-                              <td className="px-4 py-3 text-sm">{new Date(entry.timestamp).toLocaleString()}</td>
-                              <td className="px-4 py-3 text-sm font-medium">
-                                <span className="inline-flex items-center gap-1">
-                                  <ClockIcon className="w-3.5 h-3.5" />
-                                  {entry.action}
+                  <div
+                    className={`rounded-lg border overflow-y-auto flex-1 p-3 space-y-3 ${
+                      isDarkMode ? "border-gray-700" : "border-gray-200"
+                    }`}
+                  >
+                    {isCompanyHistoryLoading ? (
+                      <p
+                        className={`px-2 py-8 text-center text-sm ${
+                          isDarkMode ? "text-gray-400" : "text-gray-600"
+                        }`}
+                      >
+                        Loading history...
+                      </p>
+                    ) : companyHistory.length === 0 ? (
+                      <p
+                        className={`px-2 py-8 text-center text-sm ${
+                          isDarkMode ? "text-gray-400" : "text-gray-600"
+                        }`}
+                      >
+                        No history yet.
+                      </p>
+                    ) : (
+                      companyHistory.map((entry) => {
+                        const rawAction = entry.action;
+                        const badgeClass =
+                          rawAction === "ADD" || rawAction === "IMPORT"
+                            ? isDarkMode
+                              ? "bg-emerald-900/45 text-emerald-200 border border-emerald-700"
+                              : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                            : rawAction === "DELETE"
+                              ? isDarkMode
+                                ? "bg-rose-900/45 text-rose-200 border border-rose-700"
+                                : "bg-rose-50 text-rose-800 border border-rose-200"
+                              : isDarkMode
+                                ? "bg-sky-900/45 text-sky-200 border border-sky-700"
+                                : "bg-sky-50 text-sky-800 border border-sky-200";
+
+                        const parsedTime = new Date(entry.timestamp);
+                        const timeLabel = Number.isNaN(parsedTime.getTime())
+                          ? entry.timestamp || "—"
+                          : parsedTime.toLocaleString("en-GB", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              second: "2-digit",
+                              hour12: false,
+                            });
+
+                        return (
+                          <article
+                            key={entry.id}
+                            className={`rounded-lg border p-4 text-sm ${
+                              isDarkMode ? "border-gray-600 bg-gray-800/50" : "border-gray-200 bg-white"
+                            }`}
+                          >
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className={isDarkMode ? "text-gray-300" : "text-gray-700"}>
+                                {timeLabel}
+                              </span>
+                              <span className={isDarkMode ? "text-gray-500" : "text-gray-400"}>
+                                ·
+                              </span>
+                              <span className={isDarkMode ? "text-gray-200" : "text-gray-800"}>
+                                {entry.createdBy || "System"}
+                              </span>
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${badgeClass}`}
+                              >
+                                <ClockIcon className="w-3 h-3 shrink-0 opacity-90" />
+                                {entry.action}
+                              </span>
+                              {entry.entityType ? (
+                                <span
+                                  className={`text-[11px] font-medium rounded px-1.5 py-0.5 ${
+                                    isDarkMode ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-600"
+                                  }`}
+                                >
+                                  {entry.entityType}
+                                  {entry.entityId ? ` #${entry.entityId}` : ""}
                                 </span>
-                              </td>
-                              <td className="px-4 py-3 text-sm">{entry.createdBy}</td>
-                              <td className="px-4 py-3 text-sm">{entry.companyName}</td>
-                              <td className="px-4 py-3 text-sm">{entry.details}</td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                              ) : entry.entityId ? (
+                                <span
+                                  className={`text-[11px] font-medium rounded px-1.5 py-0.5 ${
+                                    isDarkMode ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-600"
+                                  }`}
+                                >
+                                  company #{entry.entityId}
+                                </span>
+                              ) : null}
+                            </div>
+                            <p
+                              className={`mt-1 text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                            >
+                              {entry.companyName}
+                            </p>
+                            <p
+                              className={`mt-2 font-medium ${
+                                isDarkMode ? "text-gray-100" : "text-gray-900"
+                              }`}
+                            >
+                              {entry.details || "—"}
+                            </p>
+                            <CompanyHistoryAuditBlock entry={entry} isDarkMode={isDarkMode} />
+                          </article>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               </div>
@@ -3791,11 +3873,16 @@ export default function Home() {
             </div>
 
             {showUserHistoryModal && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div className={`rounded-lg p-6 w-full max-w-3xl h-[50vh] flex flex-col ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div
+                  className={`rounded-lg p-6 w-full max-w-4xl h-[80vh] flex flex-col ${
+                    isDarkMode ? "bg-gray-800" : "bg-white"
+                  }`}
+                >
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xl font-semibold">User Change History</h3>
                     <button
+                      type="button"
                       onClick={() => setShowUserHistoryModal(false)}
                       className={`px-3 py-1 rounded-md text-sm ${
                         isDarkMode
@@ -3807,46 +3894,115 @@ export default function Home() {
                     </button>
                   </div>
 
-                  <div className={`rounded-lg border overflow-y-auto flex-1 ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
-                    <table className="w-full text-sm [border-collapse:separate] [border-spacing:0] [&_th]:tracking-wide [&_th]:uppercase [&_th]:text-[11px] [&_th]:font-bold [&_td]:align-middle [&_th]:border [&_td]:border [&_th]:border-slate-300/40 [&_td]:border-slate-300/30">
-                      <thead className={`${isDarkMode ? "bg-gray-700" : "bg-gray-100"}`}>
-                        <tr>
-                          <th className="px-4 py-3 text-left text-sm">Time</th>
-                          <th className="px-4 py-3 text-left text-sm">Action</th>
-                          <th className="px-4 py-3 text-left text-sm">User</th>
-                          <th className="px-4 py-3 text-left text-sm">Details</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {isUserHistoryLoading ? (
-                          <tr>
-                            <td colSpan={4} className={`px-4 py-6 text-center text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
-                              Loading history...
-                            </td>
-                          </tr>
-                        ) : userHistory.length === 0 ? (
-                          <tr>
-                            <td colSpan={4} className={`px-4 py-6 text-center text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
-                              No history yet.
-                            </td>
-                          </tr>
-                        ) : (
-                          userHistory.map((entry) => (
-                            <tr key={entry.id} className={`border-t ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
-                              <td className="px-4 py-3 text-sm">{new Date(entry.timestamp).toLocaleString()}</td>
-                              <td className="px-4 py-3 text-sm font-medium">
-                                <span className="inline-flex items-center gap-1">
-                                  <ClockIcon className="w-3.5 h-3.5" />
-                                  {entry.action}
+                  <div
+                    className={`rounded-lg border overflow-y-auto flex-1 p-3 space-y-3 ${
+                      isDarkMode ? "border-gray-700" : "border-gray-200"
+                    }`}
+                  >
+                    {isUserHistoryLoading ? (
+                      <p
+                        className={`px-2 py-8 text-center text-sm ${
+                          isDarkMode ? "text-gray-400" : "text-gray-600"
+                        }`}
+                      >
+                        Loading history...
+                      </p>
+                    ) : userHistory.length === 0 ? (
+                      <p
+                        className={`px-2 py-8 text-center text-sm ${
+                          isDarkMode ? "text-gray-400" : "text-gray-600"
+                        }`}
+                      >
+                        No history yet.
+                      </p>
+                    ) : (
+                      userHistory.map((entry) => {
+                        const rawAction = entry.action;
+                        const badgeClass =
+                          rawAction === "ADD" || rawAction === "IMPORT"
+                            ? isDarkMode
+                              ? "bg-emerald-900/45 text-emerald-200 border border-emerald-700"
+                              : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                            : rawAction === "DELETE"
+                              ? isDarkMode
+                                ? "bg-rose-900/45 text-rose-200 border border-rose-700"
+                                : "bg-rose-50 text-rose-800 border border-rose-200"
+                              : isDarkMode
+                                ? "bg-sky-900/45 text-sky-200 border border-sky-700"
+                                : "bg-sky-50 text-sky-800 border border-sky-200";
+
+                        const parsedTime = new Date(entry.timestamp);
+                        const timeLabel = Number.isNaN(parsedTime.getTime())
+                          ? entry.timestamp || "—"
+                          : parsedTime.toLocaleString("en-GB", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              second: "2-digit",
+                              hour12: false,
+                            });
+
+                        return (
+                          <article
+                            key={entry.id}
+                            className={`rounded-lg border p-4 text-sm ${
+                              isDarkMode ? "border-gray-600 bg-gray-800/50" : "border-gray-200 bg-white"
+                            }`}
+                          >
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className={isDarkMode ? "text-gray-300" : "text-gray-700"}>
+                                {timeLabel}
+                              </span>
+                              <span className={isDarkMode ? "text-gray-500" : "text-gray-400"}>
+                                ·
+                              </span>
+                              <span className={isDarkMode ? "text-gray-200" : "text-gray-800"}>
+                                {entry.performedBy || "System"}
+                              </span>
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${badgeClass}`}
+                              >
+                                <ClockIcon className="w-3 h-3 shrink-0 opacity-90" />
+                                {entry.action}
+                              </span>
+                              {entry.entityType ? (
+                                <span
+                                  className={`text-[11px] font-medium rounded px-1.5 py-0.5 ${
+                                    isDarkMode ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-600"
+                                  }`}
+                                >
+                                  {entry.entityType}
+                                  {entry.entityId ? ` #${entry.entityId}` : ""}
                                 </span>
-                              </td>
-                              <td className="px-4 py-3 text-sm">{entry.userName}</td>
-                              <td className="px-4 py-3 text-sm">{entry.details}</td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                              ) : entry.entityId ? (
+                                <span
+                                  className={`text-[11px] font-medium rounded px-1.5 py-0.5 ${
+                                    isDarkMode ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-600"
+                                  }`}
+                                >
+                                  user #{entry.entityId}
+                                </span>
+                              ) : null}
+                            </div>
+                            <p
+                              className={`mt-1 text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                            >
+                              {entry.userName}
+                            </p>
+                            <p
+                              className={`mt-2 font-medium ${
+                                isDarkMode ? "text-gray-100" : "text-gray-900"
+                              }`}
+                            >
+                              {entry.details || "—"}
+                            </p>
+                            <UserHistoryAuditBlock entry={entry} isDarkMode={isDarkMode} />
+                          </article>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               </div>

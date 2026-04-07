@@ -31,6 +31,41 @@ export interface LoanHistoryEntry {
   userName: string
   action: string
   details: string
+  /** From API: loan | schedule | company-link */
+  entityType?: string
+  entityId?: string
+  /** Parsed `beforeJson` for deletes and update diffs */
+  beforeSnapshot?: Record<string, unknown> | null
+  /** Parsed `afterJson` for creates and update diffs */
+  afterSnapshot?: Record<string, unknown> | null
+}
+
+export interface CompanyHistoryEntry {
+  id: number
+  timestamp: string
+  action: "ADD" | "EDIT" | "DELETE" | "IMPORT"
+  createdBy: string
+  companyName: string
+  details: string
+  entityType?: string | null
+  entityId?: string | null
+  beforeSnapshot?: Record<string, unknown> | null
+  afterSnapshot?: Record<string, unknown> | null
+}
+
+export interface UserHistoryEntry {
+  id: number
+  timestamp: string
+  action: "ADD" | "EDIT" | "DELETE" | "IMPORT"
+  /** Who performed the change (API `performedBy`) */
+  performedBy: string
+  /** Affected user label (name or email from snapshot) */
+  userName: string
+  details: string
+  entityType?: string | null
+  entityId?: string | null
+  beforeSnapshot?: Record<string, unknown> | null
+  afterSnapshot?: Record<string, unknown> | null
 }
 export interface LoanFacility {
   id: string
