@@ -2963,7 +2963,8 @@ export default function Home() {
                         <option value="Italy">Italy</option>
                         <option value="United Kingdom">United Kingdom</option>
                         <option value="United States">United States</option>
-                        <option value="Khazakstan">Khazakstan</option>
+                     
+                        <option value="Kazakstan">Kazakstan</option>
                       </select>
                     </div>
 
@@ -3890,10 +3891,12 @@ export default function Home() {
                         }`}
                       >
                         <option value="">Select country</option>
+                        <option value="Global">Global</option>
                         <option value="Italy">Italy</option>
                         <option value="United Kingdom">United Kingdom</option>
                         <option value="United States">United States</option>
-                        <option value="Khazakstan">Khazakstan</option>
+                      
+                        <option value="Kazakhstan">Kazakhstan</option>
                       </select>
                     </div>
                   </div>
