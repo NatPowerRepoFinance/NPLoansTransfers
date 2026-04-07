@@ -1862,6 +1862,13 @@ export default function Home() {
     const doc = new jsPDF({ orientation: "landscape" });
     doc.setFontSize(14);
     doc.text(`Loan Facility: ${selectedLoanFacility.name}`, 14, 16);
+    doc.setFontSize(10);
+    doc.text(
+      `Exported On: ${new Date().toLocaleDateString("en-GB")}`,
+      doc.internal.pageSize.getWidth() - 14,
+      16,
+      { align: "right" }
+    );
 
     autoTable(doc, {
       startY: 22,
