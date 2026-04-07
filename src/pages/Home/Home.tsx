@@ -335,6 +335,17 @@ export default function Home() {
     userFormData.country.trim() === String(editingUser.country ?? "").trim();
   const isUserActionButtonDisabled =
     isUserFormDisabled || (!!editingUserId && isUserEditUnchanged);
+  const countryOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          countries
+            .map((country) => String(country.name ?? "").trim())
+            .filter(Boolean)
+        )
+      ),
+    [countries]
+  );
 
   useEffect(() => {
     setCompaniesPage((previous) => Math.min(previous, Math.max(0, companiesTotalPages - 1)));
@@ -2960,11 +2971,11 @@ export default function Home() {
                         }`}
                       >
                         <option value="">Select country</option>
-                        <option value="Italy">Italy</option>
-                        <option value="United Kingdom">United Kingdom</option>
-                        <option value="United States">United States</option>
-                     
-                        <option value="Kazakstan">Kazakstan</option>
+                        {countryOptions.map((countryName) => (
+                          <option key={`company-country-${countryName}`} value={countryName}>
+                            {countryName}
+                          </option>
+                        ))}
                       </select>
                     </div>
 
@@ -3891,12 +3902,11 @@ export default function Home() {
                         }`}
                       >
                         <option value="">Select country</option>
-                        <option value="Global">Global</option>
-                        <option value="Italy">Italy</option>
-                        <option value="United Kingdom">United Kingdom</option>
-                        <option value="United States">United States</option>
-                      
-                        <option value="Kazakhstan">Kazakhstan</option>
+                        {countryOptions.map((countryName) => (
+                          <option key={`user-country-${countryName}`} value={countryName}>
+                            {countryName}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
