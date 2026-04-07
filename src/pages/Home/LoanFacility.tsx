@@ -130,6 +130,8 @@ function LoanHistoryAuditBlock({
 
 type LoanFacilityTabProps = {
   isDarkMode: boolean;
+  /** When false (e.g. Viewer), loan and schedule mutations are disabled in the UI */
+  canEditLoanFacility: boolean;
   isCreatingLoan: boolean;
   visibleLoans: Array<{ id: string; name: string }>;
   selectedLoanId: string;
@@ -226,6 +228,7 @@ type LoanFacilityTabProps = {
 export default function LoanFacilityTab(props: LoanFacilityTabProps) {
   const {
     isDarkMode,
+    canEditLoanFacility,
     isCreatingLoan,
     visibleLoans,
     selectedLoanId,
@@ -346,7 +349,11 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     Number(loanForm.annualInterestRate) === Number((selectedLoanFacility as any).annualInterestRate ?? 0) &&
     Number(loanForm.daysInYear) === Number((selectedLoanFacility as any).daysInYear ?? 0);
   const isLoanFacilityActionDisabled =
-    isLoanFacilitySubmitDisabled || (!isCreatingLoan && isLoanFacilityUnchanged);
+    !canEditLoanFacility ||
+    isLoanFacilitySubmitDisabled ||
+    (!isCreatingLoan && isLoanFacilityUnchanged);
+  const isScheduleRowSaveDisabled = isScheduleRowSubmitDisabled || !canEditLoanFacility;
+  const editLoanDisabled = !hasSelectedLoanFacility || !canEditLoanFacility;
 
   const formatLoanDate = (value: string, fallback = "-") => {
     if (!value || value.trim() === "-") {
@@ -558,8 +565,13 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
             <button
               type="button"
               onClick={handleNewLoanFacility}
+              disabled={!canEditLoanFacility}
               className={`px-3.5 py-2 rounded-xl text-sm font-semibold border transition-all shadow-sm ${
-                isDarkMode
+                !canEditLoanFacility
+                  ? isDarkMode
+                    ? "bg-gray-700 border-gray-600 text-gray-500 cursor-not-allowed"
+                    : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                  : isDarkMode
                   ? "bg-gradient-to-r from-indigo-600 to-blue-600 border-transparent text-white hover:from-indigo-500 hover:to-blue-500"
                   : "bg-gradient-to-r from-indigo-600 to-blue-600 border-transparent text-white hover:from-indigo-500 hover:to-blue-500"
               }`}
@@ -569,9 +581,9 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
             <button
               type="button"
               onClick={handleEditLoanFacility}
-              disabled={!hasSelectedLoanFacility}
+              disabled={editLoanDisabled}
               className={`px-3.5 py-2 rounded-xl text-sm font-semibold border transition-all shadow-sm ${
-                !hasSelectedLoanFacility
+                editLoanDisabled
                   ? isDarkMode
                     ? "bg-gray-700 border-gray-600 text-gray-500 cursor-not-allowed"
                     : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
@@ -1024,8 +1036,13 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                   <button
                     type="button"
                     onClick={handleOpenAddScheduleRowModal}
+                    disabled={!canEditLoanFacility}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                      isDarkMode
+                      !canEditLoanFacility
+                        ? isDarkMode
+                          ? "bg-gray-700 text-gray-500 cursor-not-allowed border border-gray-600"
+                          : "bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-300"
+                        : isDarkMode
                         ? "bg-indigo-600 hover:bg-indigo-500 text-white"
                         : "bg-indigo-600 hover:bg-indigo-700 text-white"
                     }`}
@@ -1035,8 +1052,13 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                   <button
                     type="button"
                     onClick={openImportScheduleModal}
+                    disabled={!canEditLoanFacility}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
-                      isDarkMode
+                      !canEditLoanFacility
+                        ? isDarkMode
+                          ? "bg-gray-800 border-gray-600 text-gray-500 cursor-not-allowed"
+                          : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                        : isDarkMode
                         ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
                         : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
                     }`}
@@ -1092,8 +1114,13 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                       <button
                         type="button"
                         onClick={triggerScheduleImportFile}
+                        disabled={!canEditLoanFacility}
                         className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
-                          isDarkMode
+                          !canEditLoanFacility
+                            ? isDarkMode
+                              ? "bg-gray-800 border-gray-600 text-gray-500 cursor-not-allowed"
+                              : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                            : isDarkMode
                             ? "bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
                             : "bg-white border-gray-300 text-gray-800 hover:bg-gray-100"
                         }`}
@@ -1123,10 +1150,11 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                         onChange={(e) =>
                           setImportScheduleMode(e.target.value as "overwrite" | "extend")
                         }
+                        disabled={!canEditLoanFacility}
                         className={`w-full px-3 py-2 border rounded-lg ${
                           isDarkMode
-                            ? "bg-gray-700 border-gray-600 text-white"
-                            : "bg-white border-gray-300 text-black"
+                            ? "bg-gray-700 border-gray-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                            : "bg-white border-gray-300 text-black disabled:opacity-50 disabled:cursor-not-allowed"
                         }`}
                       >
                         <option value="extend">Extend existing schedule</option>
@@ -1154,7 +1182,14 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                     <button
                       type="button"
                       onClick={handleImportSchedule}
-                      className="flex-1 px-4 py-2 rounded-lg font-medium transition bg-indigo-600 hover:bg-indigo-700 text-white"
+                      disabled={!canEditLoanFacility}
+                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+                        !canEditLoanFacility
+                          ? isDarkMode
+                            ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                          : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                      }`}
                     >
                       Import
                     </button>
@@ -1353,9 +1388,9 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                     <button
                       type="button"
                       onClick={handleSaveScheduleRow}
-                      disabled={isScheduleRowSubmitDisabled}
+                      disabled={isScheduleRowSaveDisabled}
                       className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
-                        isScheduleRowSubmitDisabled
+                        isScheduleRowSaveDisabled
                           ? isDarkMode
                             ? "bg-gray-700 text-gray-400 cursor-not-allowed"
                             : "bg-gray-300 text-gray-500 cursor-not-allowed"

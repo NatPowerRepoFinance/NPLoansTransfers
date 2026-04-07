@@ -1192,11 +1192,11 @@ export default function Home() {
     (candidate) => String(candidate.id) === String(selectedLoanId)
   );
 
-  const isViewer = currentAccessUser?.role === "Viewer";
-  const canEdit =
-    currentAccessUser?.role === "Admin" || currentAccessUser?.role === "Editor";
-  const canDelete = currentAccessUser?.role === "Admin";
-  const isAdminUser = currentAccessUser?.role === "Admin";
+  const authRoleKey = (currentAccessUser?.role ?? "").trim().toLowerCase();
+  const isViewer = authRoleKey === "viewer";
+  const canEdit = authRoleKey === "admin" || authRoleKey === "editor";
+  const canDelete = authRoleKey === "admin";
+  const isAdminUser = authRoleKey === "admin";
 
   const formatDate = (value?: string) => {
     if (!value) return "-";
@@ -1296,6 +1296,10 @@ export default function Home() {
   };
 
   const handleOpenAddScheduleRowModal = () => {
+    if (!canEdit) {
+      toast.error("Access denied: editor role is required for this action");
+      return;
+    }
     if (!selectedLoanFacility) {
       toast.error("Please select a Loan Facility first.");
       return;
@@ -1314,6 +1318,10 @@ export default function Home() {
   };
 
   const handleSaveScheduleRow = async () => {
+    if (!canEdit) {
+      toast.error("Access denied: editor role is required for this action");
+      return;
+    }
     if (!selectedLoanFacility) {
       toast.error("Please select a Loan Facility first.");
       return;
@@ -1411,6 +1419,10 @@ export default function Home() {
   };
 
  const openImportScheduleModal = () => {
+    if (!canEdit) {
+      toast.error("Access denied: editor role is required for this action");
+      return;
+    }
     setErrorMessage(null)
     setImportScheduleMode('extend')
     setImportScheduleFile(null)
@@ -1468,6 +1480,10 @@ export default function Home() {
   };
 
   const handleImportSchedule = async () => {
+    if (!canEdit) {
+      toast.error("Access denied: editor role is required for this action");
+      return;
+    }
     if (!selectedLoanFacility) {
       toast.error("Please select a Loan Facility first.");
       return;
@@ -1707,6 +1723,10 @@ export default function Home() {
   }, [isViewer, canEdit, canDelete, isDarkMode, selectedLoanId, selectedLoanFacility, loans]);
 
   const editSchedule = (row: DrawDownRow) => {
+    if (!canEdit) {
+      toast.error("Access denied: editor role is required for this action");
+      return;
+    }
     setEditingScheduleRowId(String(row.id));
     setEditingScheduleRowIndex(Number(row.scheduleIndex));
     setScheduleForm({
@@ -1813,17 +1833,11 @@ export default function Home() {
         return true;
       }
 
-      if (
-        currentAccessUser.role === "Admin" ||
-        currentAccessUser.country === "Global"
-      ) {
+      if (authRoleKey === "admin" || currentAccessUser.country === "Global") {
         return true;
       }
 
-      if (
-        currentAccessUser.role === "Editor" ||
-        currentAccessUser.role === "Viewer"
-      ) {
+      if (authRoleKey === "editor" || authRoleKey === "viewer") {
         const lenderCountry =
           companies.find((company) => company.id === loan.lenderCompanyId)
             ?.country ?? "";
@@ -1841,7 +1855,7 @@ export default function Home() {
 
       return false;
     });
-  }, [loans, showActiveOnly, currentAccessUser, companies]);
+  }, [loans, showActiveOnly, currentAccessUser, companies, authRoleKey]);
 
 
 
@@ -1931,6 +1945,10 @@ export default function Home() {
 
   
   const handleNewLoanFacility = () => {
+    if (!canEdit) {
+      toast.error("Access denied: editor role is required for this action");
+      return;
+    }
     setIsCreatingLoan(true);
    
      setLoanForm({
@@ -2672,6 +2690,7 @@ export default function Home() {
         {activeTab === "loan-facility" && (
           <LoanFacilityTab
             isDarkMode={isDarkMode}
+            canEditLoanFacility={canEdit}
             isCreatingLoan={isCreatingLoan}
             visibleLoans={visibleLoans}
             selectedLoanId={selectedLoanId}

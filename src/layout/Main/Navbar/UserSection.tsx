@@ -7,10 +7,26 @@ import { useAuth } from "@/lib/authProvider";
 import { getUserInitials, getUserFullName } from "@/lib/utils";
 import Cookies from "js-cookie";
 
+function roleAccessLabelFromStorage(): string | null {
+	const raw = (localStorage.getItem("user_role") ?? "").trim();
+	if (!raw) return null;
+	const key = raw.toLowerCase();
+	const known: Record<string, string> = {
+		admin: "Admin Access",
+		editor: "Editor Access",
+		viewer: "Viewer Access",
+	};
+	if (known[key]) return known[key];
+	const title =
+		raw.length > 0 ? raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase() : raw;
+	return `${title} Access`;
+}
+
 export default function UserSection() {
 	const { setToken, setRefreshToken } = useAuth();
 
 	const navigate = useNavigate();
+	const roleAccessLabel = roleAccessLabelFromStorage();
 
 	const handleLogout = async () => {
 		try {
@@ -43,8 +59,16 @@ export default function UserSection() {
 					className="transition-all duration-300 ease-in-out cursor-pointer hover:scale-110 hover:animate-[wiggle_0.3s_ease-in-out_infinite]"
 				/>
 			</div> */}
-			<div className="ml-4 flex items-center space-x-1">
-				<div className="w-8 h-8 text-lg rounded-full bg-white cursor-default text-black flex justify-center items-center p-1" title={getUserFullName()}>
+			<div className="ml-4 flex items-center gap-2 sm:gap-3">
+				{roleAccessLabel && (
+					<span
+						className="text-xs sm:text-sm font-medium text-white/50 tracking-tight whitespace-nowrap"
+						title="Your access level"
+					>
+						{roleAccessLabel}
+					</span>
+				)}
+				<div className="w-8 h-8 text-lg rounded-full bg-white cursor-default text-black flex justify-center items-center p-1 shrink-0" title={getUserFullName()}>
 					<span className="flex flex-col items-center justify-center">
 						{getUserInitials()}
 					</span>
