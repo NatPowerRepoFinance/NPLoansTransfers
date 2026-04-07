@@ -139,7 +139,9 @@ type LoanFacilityTabProps = {
   setShowOnlyActiveLoanFacilities: (value: boolean) => void;
   handleNewLoanFacility: () => void;
   handleEditLoanFacility: () => void;
-  handleDeleteLoanFacility: () => void;
+  /** Admin-only; used to enable Delete control */
+  canDeleteLoanFacility: boolean;
+  handleDeleteLoanFacility: () => void | Promise<void>;
   exportLoanFacilityToExcel: () => void;
   exportLoanFacilityToPDF: () => void;
   onOpenLoanFacilityHistoryModal: () => void;
@@ -233,6 +235,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     setShowOnlyActiveLoanFacilities,
     handleNewLoanFacility,
     handleEditLoanFacility,
+    canDeleteLoanFacility,
     handleDeleteLoanFacility,
     exportLoanFacilityToExcel,
     exportLoanFacilityToPDF,
@@ -323,6 +326,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     return "";
   })();
   const hasSelectedLoanFacility = selectedLoanId.trim().length > 0;
+  const canDeleteSelectedLoan = hasSelectedLoanFacility && canDeleteLoanFacility;
   const isLoanFacilitySubmitDisabled =
     !loanForm.facilityName.trim() ||
     !loanForm.status ||
@@ -581,9 +585,9 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
             <button
               type="button"
               onClick={handleDeleteLoanFacility}
-              disabled={!hasSelectedLoanFacility}
+              disabled={!canDeleteSelectedLoan}
               className={`px-3.5 py-2 rounded-xl text-sm font-semibold border transition-all shadow-sm ${
-                !hasSelectedLoanFacility
+                !canDeleteSelectedLoan
                   ? isDarkMode
                     ? "bg-gray-700 border-gray-600 text-gray-500 cursor-not-allowed"
                     : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"

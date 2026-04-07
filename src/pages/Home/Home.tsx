@@ -39,6 +39,7 @@ import {
   createLoanFacility,
   createLoanFacilityScheduleRow,
   createUser,
+  deleteLoanFacility,
   deleteCompany,
   deleteCountry,
   deleteUser,
@@ -88,36 +89,43 @@ export interface Country {
   countryCode: string;
 }
 
-const LOAN_FACILITY_SELECTION_STORAGE_PREFIX = "poSelectedLoanFacility";
+/** Single key so read/write match on refresh (user-suffixed keys caused save/read drift). */
+const LOAN_FACILITY_SELECTION_STORAGE_KEY = "poSelectedLoanFacility";
+
+type StoredLoanFacilitySelection = { id: string; label: string };
 
 function loanFacilitySelectionStorageKey(): string {
+  return LOAN_FACILITY_SELECTION_STORAGE_KEY;
+}
+
+/** Canonical + legacy suffixed keys (older builds). */
+function readStoredLoanFacilitySelectionFromAnyKey(): StoredLoanFacilitySelection | null {
   const userKey =
     localStorage.getItem("user_email")?.trim() ||
     localStorage.getItem("id")?.trim() ||
     "";
-  return userKey
-    ? `${LOAN_FACILITY_SELECTION_STORAGE_PREFIX}:${userKey}`
-    : LOAN_FACILITY_SELECTION_STORAGE_PREFIX;
+  const legacyKeys = [
+    LOAN_FACILITY_SELECTION_STORAGE_KEY,
+    userKey ? `${LOAN_FACILITY_SELECTION_STORAGE_KEY}:${userKey}` : "",
+  ].filter(Boolean);
+  for (const key of [...new Set(legacyKeys)]) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as { id?: unknown; label?: unknown };
+      const id = parsed?.id != null ? String(parsed.id).trim() : "";
+      if (!id) continue;
+      const label = parsed?.label != null ? String(parsed.label) : "";
+      return { id, label };
+    } catch {
+      continue;
+    }
+  }
+  return null;
 }
 
-type StoredLoanFacilitySelection = { id: string; label: string };
-
 function readStoredLoanFacilitySelection(): StoredLoanFacilitySelection | null {
-  try {
-    const raw = localStorage.getItem(loanFacilitySelectionStorageKey());
-    if (!raw) {
-      return null;
-    }
-    const parsed = JSON.parse(raw) as { id?: unknown; label?: unknown };
-    const id = parsed?.id != null ? String(parsed.id).trim() : "";
-    if (!id) {
-      return null;
-    }
-    const label = parsed?.label != null ? String(parsed.label) : "";
-    return { id, label };
-  } catch {
-    return null;
-  }
+  return readStoredLoanFacilitySelectionFromAnyKey();
 }
 
 function writeStoredLoanFacilitySelection(id: string, label: string) {
@@ -128,7 +136,14 @@ function writeStoredLoanFacilitySelection(id: string, label: string) {
 }
 
 function clearStoredLoanFacilitySelection() {
-  localStorage.removeItem(loanFacilitySelectionStorageKey());
+  localStorage.removeItem(LOAN_FACILITY_SELECTION_STORAGE_KEY);
+  const userKey =
+    localStorage.getItem("user_email")?.trim() ||
+    localStorage.getItem("id")?.trim() ||
+    "";
+  if (userKey) {
+    localStorage.removeItem(`${LOAN_FACILITY_SELECTION_STORAGE_KEY}:${userKey}`);
+  }
 }
 
 export const toolTipValueGetter = (params: ITooltipParams) =>
@@ -250,7 +265,6 @@ export default function Home() {
   const [selectedLoanId, setSelectedLoanId] = useState<string>('')
   const [loans, setLoans] = useState<LoanFacility[]>([])
   const initialLoanSelectionRestoreRef = useRef(false);
-  const loanSelectionStorageKeyRef = useRef<string>("");
 
   const [erpIframe, setErpIframe] = useState(false);
   const [sidebarCollapsed, setSideBarCollapsed] = useState(false);
@@ -1833,12 +1847,6 @@ export default function Home() {
 
 
   useEffect(() => {
-    const storageKey = loanFacilitySelectionStorageKey();
-    if (loanSelectionStorageKeyRef.current !== storageKey) {
-      loanSelectionStorageKeyRef.current = storageKey;
-      initialLoanSelectionRestoreRef.current = false;
-    }
-
     if (isCreatingLoan) {
       return;
     }
@@ -1878,8 +1886,9 @@ export default function Home() {
   }, [isCreatingLoan, selectedLoanId, visibleLoans]);
 
   useEffect(() => {
+    // Do not clear localStorage when id is empty — on refresh, selection is "" until loans load;
+    // clearing here was wiping persistence before restore could run.
     if (!selectedLoanId.trim()) {
-      clearStoredLoanFacilitySelection();
       return;
     }
     const loan = loans.find((l) => String(l.id) === String(selectedLoanId));
@@ -1963,8 +1972,13 @@ export default function Home() {
     setShowLoanFacilityModal(true);
   };
 
-  const handleDeleteLoanFacility = () => {
-    if (!selectedLoanFacility) {
+  const handleDeleteLoanFacility = async () => {
+    if (!canDelete) {
+      toast.error("Access denied: admin role is required to delete a loan facility.");
+      return;
+    }
+
+    if (!selectedLoanFacility || !selectedLoanId) {
       toast.error("Please select a Loan Facility first.");
       return;
     }
@@ -1976,10 +1990,21 @@ export default function Home() {
       return;
     }
 
-    setLoans((prev) => prev.filter((loan) => String(loan.id) !== String(selectedLoanId)));
-    clearStoredLoanFacilitySelection();
-    setSelectedLoanId("");
-    toast.success("Loan Facility deleted successfully.");
+    try {
+      const poAccessToken = localStorage.getItem("poAccessToken");
+      if (!poAccessToken) {
+        throw new Error("Access token is missing. Please sign in again.");
+      }
+
+      await deleteLoanFacility(poAccessToken, String(selectedLoanId));
+      clearStoredLoanFacilitySelection();
+      await loadAllData();
+      toast.success("Loan Facility deleted successfully.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to delete loan facility";
+      toast.error(message);
+    }
   };
 
   const exportLoanFacilityToExcel = () => {
@@ -2656,6 +2681,7 @@ export default function Home() {
             setShowOnlyActiveLoanFacilities={setShowOnlyActiveLoanFacilities}
             handleNewLoanFacility={handleNewLoanFacility}
             handleEditLoanFacility={handleEditLoanFacility}
+            canDeleteLoanFacility={canDelete}
             handleDeleteLoanFacility={handleDeleteLoanFacility}
             exportLoanFacilityToExcel={exportLoanFacilityToExcel}
             exportLoanFacilityToPDF={exportLoanFacilityToPDF}

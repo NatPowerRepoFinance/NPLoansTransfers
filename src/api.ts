@@ -463,6 +463,23 @@ export const updateLoanFacility = async (
   }
 };
 
+export const deleteLoanFacility = async (
+  poAccessToken: string,
+  loanFacilityId: string,
+): Promise<void> => {
+  const response = await fetch(`${API_BASE_URL}/api/v1/loan-facilities/${loanFacilityId}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Access-Token": poAccessToken,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete loan facility (${response.status})`);
+  }
+};
+
 export const getCompanies = async (
   poAccessToken: string,
 ): Promise<Array<{
