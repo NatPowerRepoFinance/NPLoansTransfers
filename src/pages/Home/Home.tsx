@@ -195,6 +195,13 @@ function mockUserHistoryAction(action: string): UserHistoryEntry["action"] {
   return "IMPORT";
 }
 
+/** Badge text for company/user history modals (internal action stays EDIT). */
+function adminHistoryActionBadgeLabel(
+  action: CompanyHistoryEntry["action"] | UserHistoryEntry["action"],
+): string {
+  return action === "EDIT" ? "UPDATE" : action;
+}
+
 // const rowSelection: RowSelectionOptions = {
 //     mode: "multiRow",
 //     headerCheckbox: true,
@@ -3345,7 +3352,7 @@ export default function Home() {
                                 className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${badgeClass}`}
                               >
                                 <ClockIcon className="w-3 h-3 shrink-0 opacity-90" />
-                                {entry.action}
+                                {adminHistoryActionBadgeLabel(entry.action)}
                               </span>
                               {entry.entityType ? (
                                 <span
@@ -4054,7 +4061,7 @@ export default function Home() {
                                 className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${badgeClass}`}
                               >
                                 <ClockIcon className="w-3 h-3 shrink-0 opacity-90" />
-                                {entry.action}
+                                {adminHistoryActionBadgeLabel(entry.action)}
                               </span>
                               {entry.entityType ? (
                                 <span
