@@ -1244,6 +1244,7 @@ export default function Home() {
     cumulativePrincipal: number;
     interest: number;
     cumulativeInterest: number;
+    cumulativeTotal: number;
     total: number;
     fees: number;
   };
@@ -1576,6 +1577,8 @@ export default function Home() {
       const cumulativeInterestValue = Number(
         row?.cumulativeInterest ?? cumulativeInterest
       );
+      const cumulativeTotalValue =
+        cumulativePrincipalValue + cumulativeInterestValue;
 
       return {
         id: String(row?.id ?? `${index + 1}`),
@@ -1592,6 +1595,7 @@ export default function Home() {
         cumulativePrincipal: cumulativePrincipalValue,
         interest,
         cumulativeInterest: cumulativeInterestValue,
+        cumulativeTotal: cumulativeTotalValue,
         total: Number(row?.total ?? principal + interest + fees),
         fees,
       };
@@ -1661,6 +1665,12 @@ export default function Home() {
         field: "cumulativeInterest",
         headerName: "Cumulative Interest",
         minWidth: 170,
+        valueFormatter: (params) => formatCurrency(Number(params.value ?? 0)),
+      },
+      {
+        field: "cumulativeTotal",
+        headerName: "Cumulative Total",
+        minWidth: 160,
         valueFormatter: (params) => formatCurrency(Number(params.value ?? 0)),
       },
       {
@@ -2073,6 +2083,7 @@ export default function Home() {
       "Cumulative Principal": row.cumulativePrincipal,
       Interest: row.interest,
       "Cumulative Interest": row.cumulativeInterest,
+      "Cumulative Total": row.cumulativeTotal,
       Total: row.total,
       Fees: row.fees,
     }));
@@ -2163,6 +2174,7 @@ export default function Home() {
         "Cumulative Principal",
         "Interest",
         "Cumulative Interest",
+        "Cumulative Total",
         "Total",
         "Fees",
       ]],
@@ -2180,6 +2192,7 @@ export default function Home() {
         formatCurrency(row.cumulativePrincipal),
         formatCurrency(row.interest),
         formatCurrency(row.cumulativeInterest),
+        formatCurrency(row.cumulativeTotal),
         formatCurrency(row.total),
         formatCurrency(row.fees),
       ]),
