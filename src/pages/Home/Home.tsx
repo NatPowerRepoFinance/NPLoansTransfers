@@ -1083,15 +1083,39 @@ export default function Home() {
     fees: number;
   };
 
-  const availableBankAccounts = useMemo(() => {
-    const accounts = companies.flatMap((company) =>
-      String(company.bankAccounts ?? "")
-        .split(",")
-        .map((account) => account.trim())
-        .filter(Boolean)
+  const availableLenderBankAccounts = useMemo(() => {
+    const lenderCompany = companies.find(
+      (company) => String(company.id) === String(selectedLoanFacility?.lenderCompanyId ?? "")
     );
-    return Array.from(new Set(accounts));
-  }, [companies]);
+    if (!lenderCompany) {
+      return [];
+    }
+    return Array.from(
+      new Set(
+        String(lenderCompany.bankAccounts ?? "")
+          .split(",")
+          .map((account) => account.trim())
+          .filter(Boolean)
+      )
+    );
+  }, [companies, selectedLoanFacility]);
+
+  const availableBorrowerBankAccounts = useMemo(() => {
+    const borrowerCompany = companies.find(
+      (company) => String(company.id) === String(selectedLoanFacility?.borrowerCompanyId ?? "")
+    );
+    if (!borrowerCompany) {
+      return [];
+    }
+    return Array.from(
+      new Set(
+        String(borrowerCompany.bankAccounts ?? "")
+          .split(",")
+          .map((account) => account.trim())
+          .filter(Boolean)
+      )
+    );
+  }, [companies, selectedLoanFacility]);
 
   const resetScheduleForm = () => {
     setScheduleForm({
@@ -2479,7 +2503,8 @@ export default function Home() {
             scheduleRowSubmitLabel={editingScheduleRowId ? "Update Row" : "Save Row"}
             scheduleForm={scheduleForm}
             setScheduleForm={setScheduleForm}
-            availableBankAccounts={availableBankAccounts}
+            availableLenderBankAccounts={availableLenderBankAccounts}
+            availableBorrowerBankAccounts={availableBorrowerBankAccounts}
             handleSaveScheduleRow={handleSaveScheduleRow}
           />
         )}

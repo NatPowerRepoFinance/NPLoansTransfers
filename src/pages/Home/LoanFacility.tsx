@@ -93,7 +93,8 @@ type LoanFacilityTabProps = {
       fees: string;
     }>
   >;
-  availableBankAccounts: string[];
+  availableLenderBankAccounts: string[];
+  availableBorrowerBankAccounts: string[];
   handleSaveScheduleRow: () => void;
 };
 
@@ -146,7 +147,8 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     scheduleRowSubmitLabel,
     scheduleForm,
     setScheduleForm,
-    availableBankAccounts,
+    availableLenderBankAccounts,
+    availableBorrowerBankAccounts,
     handleSaveScheduleRow,
   } = props;
 
@@ -1061,7 +1063,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                         }`}
                       >
                         <option value="">Select lender bank account</option>
-                        {availableBankAccounts.map((account) => (
+                        {availableLenderBankAccounts.map((account) => (
                           <option key={`lender-account-${account}`} value={account}>
                             {account}
                           </option>
@@ -1088,7 +1090,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                         }`}
                       >
                         <option value="">Select borrower bank account</option>
-                        {availableBankAccounts.map((account) => (
+                        {availableBorrowerBankAccounts.map((account) => (
                           <option key={`borrower-account-${account}`} value={account}>
                             {account}
                           </option>
