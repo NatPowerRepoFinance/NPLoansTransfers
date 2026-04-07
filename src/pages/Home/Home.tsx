@@ -88,6 +88,49 @@ export interface Country {
   countryCode: string;
 }
 
+const LOAN_FACILITY_SELECTION_STORAGE_PREFIX = "poSelectedLoanFacility";
+
+function loanFacilitySelectionStorageKey(): string {
+  const userKey =
+    localStorage.getItem("user_email")?.trim() ||
+    localStorage.getItem("id")?.trim() ||
+    "";
+  return userKey
+    ? `${LOAN_FACILITY_SELECTION_STORAGE_PREFIX}:${userKey}`
+    : LOAN_FACILITY_SELECTION_STORAGE_PREFIX;
+}
+
+type StoredLoanFacilitySelection = { id: string; label: string };
+
+function readStoredLoanFacilitySelection(): StoredLoanFacilitySelection | null {
+  try {
+    const raw = localStorage.getItem(loanFacilitySelectionStorageKey());
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as { id?: unknown; label?: unknown };
+    const id = parsed?.id != null ? String(parsed.id).trim() : "";
+    if (!id) {
+      return null;
+    }
+    const label = parsed?.label != null ? String(parsed.label) : "";
+    return { id, label };
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredLoanFacilitySelection(id: string, label: string) {
+  localStorage.setItem(
+    loanFacilitySelectionStorageKey(),
+    JSON.stringify({ id, label }),
+  );
+}
+
+function clearStoredLoanFacilitySelection() {
+  localStorage.removeItem(loanFacilitySelectionStorageKey());
+}
+
 export const toolTipValueGetter = (params: ITooltipParams) =>
   params.value == null || params.value === "" ? "- Missing -" : params.value;
 
@@ -199,6 +242,8 @@ export default function Home() {
   const [isCreatingLoan, setIsCreatingLoan] = useState(false);
   const [selectedLoanId, setSelectedLoanId] = useState<string>('')
   const [loans, setLoans] = useState<LoanFacility[]>([])
+  const initialLoanSelectionRestoreRef = useRef(false);
+  const loanSelectionStorageKeyRef = useRef<string>("");
 
   const [erpIframe, setErpIframe] = useState(false);
   const [sidebarCollapsed, setSideBarCollapsed] = useState(false);
@@ -1781,6 +1826,12 @@ export default function Home() {
 
 
   useEffect(() => {
+    const storageKey = loanFacilitySelectionStorageKey();
+    if (loanSelectionStorageKeyRef.current !== storageKey) {
+      loanSelectionStorageKeyRef.current = storageKey;
+      initialLoanSelectionRestoreRef.current = false;
+    }
+
     if (isCreatingLoan) {
       return;
     }
@@ -1791,14 +1842,51 @@ export default function Home() {
     }
 
     const stillVisible = visibleLoans.some(
-      (loan) => String(loan.id) === String(selectedLoanId)
+      (loan) => String(loan.id) === String(selectedLoanId),
     );
 
     if (!selectedLoanId || !stillVisible) {
-      const fallbackId = String(visibleLoans[0].id);
-      setSelectedLoanId(fallbackId);
+      let nextId: string;
+      if (!initialLoanSelectionRestoreRef.current) {
+        initialLoanSelectionRestoreRef.current = true;
+        const stored = readStoredLoanFacilitySelection();
+        const storedIsValid =
+          stored &&
+          visibleLoans.some((loan) => String(loan.id) === String(stored.id));
+        if (storedIsValid) {
+          nextId = String(stored!.id);
+        } else {
+          if (stored) {
+            clearStoredLoanFacilitySelection();
+          }
+          nextId = String(visibleLoans[0].id);
+        }
+      } else {
+        nextId = String(visibleLoans[0].id);
+      }
+      setSelectedLoanId(nextId);
+    } else if (!initialLoanSelectionRestoreRef.current) {
+      initialLoanSelectionRestoreRef.current = true;
     }
   }, [isCreatingLoan, selectedLoanId, visibleLoans]);
+
+  useEffect(() => {
+    if (!selectedLoanId.trim()) {
+      clearStoredLoanFacilitySelection();
+      return;
+    }
+    const loan = loans.find((l) => String(l.id) === String(selectedLoanId));
+    const stored = readStoredLoanFacilitySelection();
+    let label = "";
+    if (loan && typeof loan.name === "string" && loan.name.trim()) {
+      label = loan.name.trim();
+    } else if (stored?.id === String(selectedLoanId) && stored.label.trim()) {
+      label = stored.label.trim();
+    } else {
+      label = `Loan #${selectedLoanId}`;
+    }
+    writeStoredLoanFacilitySelection(String(selectedLoanId), label);
+  }, [selectedLoanId, loans]);
 
   useEffect(() => {
     if (!showActiveOnly || !selectedLoanId) {
@@ -1882,6 +1970,7 @@ export default function Home() {
     }
 
     setLoans((prev) => prev.filter((loan) => String(loan.id) !== String(selectedLoanId)));
+    clearStoredLoanFacilitySelection();
     setSelectedLoanId("");
     toast.success("Loan Facility deleted successfully.");
   };
