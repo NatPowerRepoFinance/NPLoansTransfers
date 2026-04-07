@@ -62,6 +62,11 @@ export interface Company {
   type: string;
   country: string;
   bankAccounts: string;
+  bankAccountDetails?: Array<{
+    id: number;
+    accountName: string;
+    rowIndex: number;
+  }>;
 }
 
 export interface User {
@@ -167,6 +172,7 @@ export default function Home() {
       type: "Holding",
       country: "United Kingdom",
       bankAccounts: "GB12NATP000123456789",
+      bankAccountDetails: [{ id: 0, accountName: "GB12NATP000123456789", rowIndex: 1 }],
     },
     {
       id: "2",
@@ -175,6 +181,7 @@ export default function Home() {
       type: "Subsidiary",
       country: "India",
       bankAccounts: "IN55NATP000987654321",
+      bankAccountDetails: [{ id: 0, accountName: "IN55NATP000987654321", rowIndex: 1 }],
     },
   ]);
   const [showModal, setShowModal] = useState(false);
@@ -506,16 +513,31 @@ export default function Home() {
         sapCode: company.sapCode,
         type: company.type,
         country: company.country,
-        bankAccounts:
-          company.bankAccounts
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean).length > 0
-            ? company.bankAccounts
+        bankAccounts: (
+          company.bankAccountDetails?.length
+            ? company.bankAccountDetails
+                .slice()
+                .sort((first, second) => first.rowIndex - second.rowIndex)
+                .map((account) => account.accountName.trim())
+                .filter(Boolean)
+            : company.bankAccounts
                 .split(",")
                 .map((item) => item.trim())
                 .filter(Boolean)
-            : [""],
+        ).length
+          ? (
+              company.bankAccountDetails?.length
+                ? company.bankAccountDetails
+                    .slice()
+                    .sort((first, second) => first.rowIndex - second.rowIndex)
+                    .map((account) => account.accountName.trim())
+                    .filter(Boolean)
+                : company.bankAccounts
+                    .split(",")
+                    .map((item) => item.trim())
+                    .filter(Boolean)
+            )
+          : [""],
       });
     } else {
       setEditingId(null);
@@ -547,17 +569,62 @@ export default function Home() {
           throw new Error("Access token is missing. Please sign in again.");
         }
 
+        const editingCompany = companies.find(
+          (company) => String(company.id) === String(editingId),
+        );
+        const existingBankAccountDetails = (editingCompany?.bankAccountDetails ?? [])
+          .slice()
+          .sort((first, second) => first.rowIndex - second.rowIndex);
+        const existingIdsByName = new Map<string, number[]>();
+        for (const account of existingBankAccountDetails) {
+          const key = account.accountName.trim().toLowerCase();
+          const accountId = Number(account.id) || 0;
+          if (accountId <= 0) {
+            continue;
+          }
+          if (!existingIdsByName.has(key)) {
+            existingIdsByName.set(key, []);
+          }
+          existingIdsByName.get(key)?.push(accountId);
+        }
+
+        let bankAccountsPayload = normalizedBankAccounts.map((accountName, index) => {
+          const key = accountName.trim().toLowerCase();
+          const candidateIds = existingIdsByName.get(key) ?? [];
+          const preservedId =
+            candidateIds.length > 0 ? (candidateIds.shift() ?? 0) : 0;
+          existingIdsByName.set(key, candidateIds);
+          return {
+            id: preservedId,
+            accountName,
+            rowIndex: index + 1,
+          };
+        });
+
+        if (normalizedBankAccounts.length === existingBankAccountDetails.length) {
+          const usedIds = new Set(
+            bankAccountsPayload.map((row) => row.id).filter((id) => id > 0),
+          );
+          bankAccountsPayload = bankAccountsPayload.map((row, index) => {
+            if (row.id > 0) {
+              return row;
+            }
+            const slotId = Number(existingBankAccountDetails[index]?.id) || 0;
+            if (slotId > 0 && !usedIds.has(slotId)) {
+              usedIds.add(slotId);
+              return { ...row, id: slotId };
+            }
+            return row;
+          });
+        }
+
         await updateCompany(poAccessToken, editingId, {
-          id: 0,
+          id: Number.parseInt(editingId, 10) || 0,
           name: formData.name.trim(),
           code: formData.sapCode.trim(),
           type: formData.type,
           country: formData.country,
-          bankAccounts: normalizedBankAccounts.map((accountName, index) => ({
-            id: 0,
-            accountName,
-            rowIndex: index + 1,
-          })),
+          bankAccounts: bankAccountsPayload,
         });
 
         await loadAllData();
@@ -2031,6 +2098,7 @@ export default function Home() {
         sapCode: company.code,
         type: company.type,
         country: company.country,
+        bankAccountDetails: company.bankAccountDetails,
         bankAccounts: Array.isArray(company.bankAccounts)
           ? company.bankAccounts.join(", ")
           : String(company.bankAccounts ?? ""),

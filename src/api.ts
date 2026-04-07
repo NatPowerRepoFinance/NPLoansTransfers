@@ -8,6 +8,25 @@ type ApiEnvelope<T> = {
   data: T;
 };
 
+function parseCompanyBankAccountId(account: unknown): number {
+  if (account === null || typeof account !== "object") {
+    return 0;
+  }
+  const a = account as Record<string, unknown>;
+  const raw =
+    a.id ??
+    a.Id ??
+    a.accountId ??
+    a.AccountId ??
+    a.bankAccountId ??
+    a.BankAccountId;
+  if (raw === null || raw === undefined || raw === "") {
+    return 0;
+  }
+  const n = typeof raw === "string" ? Number.parseInt(raw, 10) : Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 0;
+}
+
 type SsoLoginResponse = {
   id?: number;
   firstName?: string;
@@ -54,10 +73,14 @@ type CompanyApiItem = {
   type?: string;
   country?: string;
   bankAccounts?:
-    | Array<string | { id?: number; accountName?: string; account_name?: string }>
+    | Array<
+        string | { id?: number; accountName?: string; account_name?: string; rowIndex?: number; row_index?: number }
+      >
     | string;
   bank_accounts?:
-    | Array<string | { id?: number; accountName?: string; account_name?: string }>
+    | Array<
+        string | { id?: number; accountName?: string; account_name?: string; rowIndex?: number; row_index?: number }
+      >
     | string;
 };
 
@@ -429,6 +452,7 @@ export const getCompanies = async (
   type: string;
   country: string;
   bankAccounts: string[] | string;
+  bankAccountDetails: Array<{ id: number; accountName: string; rowIndex: number }>;
 }>> => {
   const response = await fetch(`${API_BASE_URL}/api/v1/companies`, {
     method: "GET",
@@ -451,6 +475,31 @@ export const getCompanies = async (
     code: String(company?.code ?? company?.sapCode ?? company?.sap_code ?? ""),
     type: String(company?.type ?? ""),
     country: String(company?.country ?? ""),
+    bankAccountDetails: (() => {
+      const accounts = company?.bankAccounts ?? company?.bank_accounts ?? [];
+      if (!Array.isArray(accounts)) {
+        const single = String(accounts ?? "").trim();
+        return single
+          ? [{ id: 0, accountName: single, rowIndex: 1 }]
+          : [];
+      }
+      return accounts
+        .map((account, index) => {
+          if (typeof account === "string") {
+            return {
+              id: 0,
+              accountName: account.trim(),
+              rowIndex: index + 1,
+            };
+          }
+          return {
+            id: parseCompanyBankAccountId(account),
+            accountName: String(account?.accountName ?? account?.account_name ?? "").trim(),
+            rowIndex: Number(account?.rowIndex ?? account?.row_index ?? index + 1),
+          };
+        })
+        .filter((account) => !!account.accountName);
+    })(),
     bankAccounts: (() => {
       const accounts = company?.bankAccounts ?? company?.bank_accounts ?? [];
       if (Array.isArray(accounts)) {
