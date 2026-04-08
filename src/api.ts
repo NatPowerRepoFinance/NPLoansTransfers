@@ -1214,26 +1214,27 @@ export const getCountrySummaryLoansReport = async (
     });
 };
 
+/** POST multipart/form-data with part name `file`; `mode` is required as a query param per API. */
 export const importLoanFacilitySchedule = async (
   poAccessToken: string,
   loanFacilityId: string,
   file: File,
-  mode?: "overwrite" | "extend",
+  mode: "overwrite" | "extend" = "extend",
 ): Promise<void> => {
   const endpoint = new URL(
     `${API_BASE_URL}/api/v1/loan-facilities/${loanFacilityId}/schedule/import`,
   );
-  if (mode) {
-    endpoint.searchParams.set("mode", mode);
-  }
+  endpoint.searchParams.set("mode", mode);
+
+  const formData = new FormData();
+  formData.append("file", file, file.name);
 
   const response = await fetch(endpoint.toString(), {
     method: "POST",
     headers: {
       "X-Access-Token": poAccessToken,
-      "Content-Type": file.type || "application/octet-stream",
     },
-    body: file,
+    body: formData,
   });
 
   if (!response.ok) {
