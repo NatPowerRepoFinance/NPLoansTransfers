@@ -246,6 +246,57 @@ export const useDummyFetchJson = <T,>(url: string, limit?: number) => {
   return { data, loading };
 };
 
+function isAdminRoleFromStorage(): boolean {
+  return (localStorage.getItem("user_role") ?? "").trim().toLowerCase() === "admin";
+}
+
+/**
+ * When `/api/v1/users` is not called for non-admins, keep a one-row list so `ensureEditor` can
+ * match the signed-in user by email.
+ */
+function minimalUsersFromSessionForEnsureEditor(): User[] {
+  let email = (localStorage.getItem("user_email") ?? "").trim();
+  const token = localStorage.getItem("poAccessToken");
+  if (!email && token) {
+    try {
+      const raw = token.split(".")[1];
+      if (raw) {
+        const payload = JSON.parse(atob(raw)) as {
+          email?: string;
+          preferred_username?: string;
+          unique_name?: string;
+          upn?: string;
+        };
+        email = String(
+          payload?.email ?? payload?.preferred_username ?? payload?.unique_name ?? payload?.upn ?? "",
+        ).trim();
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const firstName = (localStorage.getItem("user_first_name") ?? "").trim();
+  const lastName = (localStorage.getItem("user_last_name") ?? "").trim();
+  const role = (localStorage.getItem("user_role") ?? "").trim();
+  const country = (localStorage.getItem("user_country") ?? "").trim();
+
+  if (!email) {
+    return [];
+  }
+
+  return [
+    {
+      id: "session",
+      firstName: firstName || "User",
+      lastName,
+      email,
+      role: role || "Viewer",
+      country,
+    },
+  ];
+}
+
 export default function Home() {
   // const role = getUserRole() || "User";
   // const accessibleStatuses = roleStatusAccess[role] || [];
@@ -534,6 +585,10 @@ export default function Home() {
   };
 
   const handleOpenCompanyHistoryModal = async () => {
+    if (!isAdminRoleFromStorage()) {
+      toast.error("Access denied: admin role is required.");
+      return;
+    }
     setShowCompanyHistoryModal(true);
     setIsCompanyHistoryLoading(true);
     try {
@@ -574,6 +629,10 @@ export default function Home() {
   };
 
   const handleOpenUserHistoryModal = async () => {
+    if (!isAdminRoleFromStorage()) {
+      toast.error("Access denied: admin role is required.");
+      return;
+    }
     setShowUserHistoryModal(true);
     setIsUserHistoryLoading(true);
     try {
@@ -635,6 +694,11 @@ export default function Home() {
   };
 
   const handleSave = async () => {
+    if (!isAdminRoleFromStorage()) {
+      toast.error("Access denied: admin role is required.");
+      return;
+    }
+
     const normalizedBankAccounts = formData.bankAccounts
       .map((item) => item.trim())
       .filter(Boolean);
@@ -762,6 +826,11 @@ export default function Home() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!isAdminRoleFromStorage()) {
+      toast.error("Access denied: admin role is required.");
+      return;
+    }
+
     if (!window.confirm("Are you sure you want to delete this company?")) {
       return;
     }
@@ -838,6 +907,11 @@ export default function Home() {
   };
 
   const handleCompanyImport = async () => {
+    if (!isAdminRoleFromStorage()) {
+      toast.error("Access denied: admin role is required.");
+      return;
+    }
+
     if (!importCompanyFile) {
       setImportCompanyError("Please choose a file to import.");
       return;
@@ -882,6 +956,11 @@ export default function Home() {
   };
 
   const handleSaveUser = async () => {
+    if (!isAdminRoleFromStorage()) {
+      toast.error("Access denied: admin role is required.");
+      return;
+    }
+
     if (!userFormData.firstName.trim() || !userFormData.lastName.trim() || !userFormData.email.trim() || !userFormData.role.trim() || !userFormData.country.trim()) {
       toast.error("Please fill in all fields");
       return;
@@ -934,6 +1013,11 @@ export default function Home() {
   };
 
   const handleDeleteUser = async (id: string) => {
+    if (!isAdminRoleFromStorage()) {
+      toast.error("Access denied: admin role is required.");
+      return;
+    }
+
     if (!window.confirm("Are you sure you want to delete this user?")) {
       return;
     }
@@ -1073,6 +1157,11 @@ export default function Home() {
   };
 
   const handleSaveCountry = async () => {
+    if (!isAdminRoleFromStorage()) {
+      toast.error("Access denied: admin role is required.");
+      return;
+    }
+
     if (!countryFormData.name.trim() || !countryFormData.countryCode.trim()) {
       toast.error("Please fill in all country fields");
       return;
@@ -1110,6 +1199,11 @@ export default function Home() {
   };
 
   const handleDeleteCountry = async (id: number) => {
+    if (!isAdminRoleFromStorage()) {
+      toast.error("Access denied: admin role is required.");
+      return;
+    }
+
     if (!window.confirm("Are you sure you want to delete this country?")) {
       return;
     }
@@ -2217,14 +2311,15 @@ export default function Home() {
     }
     const loanFacilities = poAccessToken ? await getLoanFacilities(poAccessToken) : [];
 
-    const [nextCountries, nextCompanies, nextLoans, nextUsers, nextCompanyHistory, nextUserHistory] = await Promise.all([
-      getCountries(poAccessToken),
-      getCompanies(poAccessToken),
-      Promise.resolve(loanFacilities),
-      getUsers(poAccessToken),
-      mockApi.getCompanyHistory(),
-      mockApi.getUserHistory(),
-    ])
+    const [nextCountries, nextCompanies, nextLoans, nextUsersApi, nextCompanyHistory, nextUserHistory] =
+      await Promise.all([
+        getCountries(poAccessToken),
+        getCompanies(poAccessToken),
+        Promise.resolve(loanFacilities),
+        isAdminRoleFromStorage() ? getUsers(poAccessToken) : Promise.resolve([]),
+        mockApi.getCompanyHistory(),
+        mockApi.getUserHistory(),
+      ])
 
     setCountries(
       nextCountries.map((country, index) => ({
@@ -2250,14 +2345,16 @@ export default function Home() {
 
     setLoans(nextLoans)
     setUsers(
-      nextUsers.map((user) => ({
-        id: user.id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        role: user.role,
-        country: user.country ?? "",
-      }))
+      isAdminRoleFromStorage()
+        ? nextUsersApi.map((user) => ({
+            id: user.id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            role: user.role,
+            country: user.country ?? "",
+          }))
+        : minimalUsersFromSessionForEnsureEditor(),
     )
 
     setCompanyHistory(
