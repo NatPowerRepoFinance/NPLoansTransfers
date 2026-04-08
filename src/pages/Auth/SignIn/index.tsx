@@ -134,7 +134,11 @@ const AuthLogin = () => {
             return;
           }
 
-          setError("Sign-in failed. Please try again.");
+          if (error instanceof Error && error.message.trim()) {
+            setError(error.message.trim());
+          } else {
+            setError("Sign-in failed. Please try again.");
+          }
           console.error("Error during MSAL sign-in flow:", error);
         } finally {
           setIsSigningIn(false);
