@@ -40,10 +40,13 @@ import {
   createLoanFacilityScheduleRow,
   createUser,
   deleteLoanFacility,
+  createCurrencyExchange,
   deleteCompany,
   deleteCountry,
+  deleteCurrencyExchange,
   deleteUser,
   getCompanies,
+  getCurrencyExchanges,
   getCountries,
   importCompanies,
   importLoanFacilitySchedule,
@@ -56,6 +59,7 @@ import {
   getUsersHistory,
   updateCountry,
   updateCompany,
+  updateCurrencyExchange,
   updateLoanFacility,
   updateUser,
 } from "@/api";
@@ -88,6 +92,12 @@ export interface Country {
   id: number;
   name: string;
   countryCode: string;
+}
+
+export interface CurrencyExchange {
+  id: string;
+  currency: string;
+  exchangeRate: number;
 }
 
 /** Single key so read/write match on refresh (user-suffixed keys caused save/read drift). */
@@ -312,6 +322,7 @@ export default function Home() {
       currency: 'EUR' as LoanFacility['currency'],
       annualInterestRate: 0,
       daysInYear: 365,
+      addRow: false,
   };
   const [isCreatingLoan, setIsCreatingLoan] = useState(false);
   const [selectedLoanId, setSelectedLoanId] = useState<string>('')
@@ -387,6 +398,14 @@ export default function Home() {
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [editingCountryId, setEditingCountryId] = useState<number | null>(null);
   const [countryFormData, setCountryFormData] = useState({ name: "", countryCode: "" });
+  const [currencyExchanges, setCurrencyExchanges] = useState<CurrencyExchange[]>([]);
+  const [currencyExchangesPage, setCurrencyExchangesPage] = useState(0);
+  const [showCurrencyExchangeModal, setShowCurrencyExchangeModal] = useState(false);
+  const [editingCurrencyExchangeId, setEditingCurrencyExchangeId] = useState<string | null>(null);
+  const [currencyExchangeForm, setCurrencyExchangeForm] = useState({
+    currency: "",
+    exchangeRate: "",
+  });
   const [showCompanyHistoryModal, setShowCompanyHistoryModal] = useState(false);
   const [companyHistory, setCompanyHistory] = useState<CompanyHistoryEntry[]>([]);
   const [isCompanyHistoryLoading, setIsCompanyHistoryLoading] = useState(false);
@@ -433,6 +452,10 @@ export default function Home() {
   const companiesTotalPages = Math.max(1, Math.ceil(companies.length / ADMIN_TABLE_PAGE_SIZE));
   const countriesTotalPages = Math.max(1, Math.ceil(countries.length / ADMIN_TABLE_PAGE_SIZE));
   const usersTotalPages = Math.max(1, Math.ceil(users.length / ADMIN_TABLE_PAGE_SIZE));
+  const currencyExchangesTotalPages = Math.max(
+    1,
+    Math.ceil(currencyExchanges.length / ADMIN_TABLE_PAGE_SIZE),
+  );
 
   const pagedCompanies = useMemo(() => {
     const startIndex = companiesPage * ADMIN_TABLE_PAGE_SIZE;
@@ -448,6 +471,12 @@ export default function Home() {
     const startIndex = usersPage * ADMIN_TABLE_PAGE_SIZE;
     return users.slice(startIndex, startIndex + ADMIN_TABLE_PAGE_SIZE);
   }, [users, usersPage]);
+
+  const pagedCurrencyExchanges = useMemo(() => {
+    const startIndex = currencyExchangesPage * ADMIN_TABLE_PAGE_SIZE;
+    return currencyExchanges.slice(startIndex, startIndex + ADMIN_TABLE_PAGE_SIZE);
+  }, [currencyExchanges, currencyExchangesPage]);
+
   const isCompanyFormActionDisabled =
     !formData.name.trim() ||
     !formData.sapCode.trim() ||
@@ -532,6 +561,11 @@ export default function Home() {
     setUsersPage((previous) => Math.min(previous, Math.max(0, usersTotalPages - 1)));
   }, [usersTotalPages]);
 
+  useEffect(() => {
+    setCurrencyExchangesPage((previous) =>
+      Math.min(previous, Math.max(0, currencyExchangesTotalPages - 1)),
+    );
+  }, [currencyExchangesTotalPages]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -1219,6 +1253,95 @@ export default function Home() {
       toast.success("Country deleted successfully");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to delete country";
+      toast.error(message);
+    }
+  };
+
+  const handleOpenCurrencyExchangeModal = (row?: CurrencyExchange) => {
+    if (!isAdminRoleFromStorage()) {
+      toast.error("Access denied: admin role is required.");
+      return;
+    }
+    if (row) {
+      setEditingCurrencyExchangeId(row.id);
+      setCurrencyExchangeForm({
+        currency: row.currency,
+        exchangeRate: String(row.exchangeRate),
+      });
+    } else {
+      setEditingCurrencyExchangeId(null);
+      setCurrencyExchangeForm({ currency: "", exchangeRate: "" });
+    }
+    setShowCurrencyExchangeModal(true);
+  };
+
+  const handleSaveCurrencyExchange = async () => {
+    if (!isAdminRoleFromStorage()) {
+      toast.error("Access denied: admin role is required.");
+      return;
+    }
+
+    const currency = currencyExchangeForm.currency.trim().toUpperCase();
+    const rate = Number(currencyExchangeForm.exchangeRate);
+
+    if (!currency) {
+      toast.error("Please enter a currency code.");
+      return;
+    }
+    if (!Number.isFinite(rate)) {
+      toast.error("Please enter a valid exchange rate.");
+      return;
+    }
+
+    try {
+      const poAccessToken = localStorage.getItem("poAccessToken");
+      if (!poAccessToken) {
+        throw new Error("Access token is missing. Please sign in again.");
+      }
+
+      const payload = { currency, exchangeRate: rate };
+
+      if (editingCurrencyExchangeId) {
+        await updateCurrencyExchange(poAccessToken, editingCurrencyExchangeId, payload);
+        toast.success("Currency exchange updated successfully");
+      } else {
+        await createCurrencyExchange(poAccessToken, payload);
+        toast.success("Currency exchange added successfully");
+      }
+
+      await loadAllData();
+      setShowCurrencyExchangeModal(false);
+      setEditingCurrencyExchangeId(null);
+      setCurrencyExchangeForm({ currency: "", exchangeRate: "" });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to save currency exchange";
+      toast.error(message);
+    }
+  };
+
+  const handleDeleteCurrencyExchange = async (id: string) => {
+    if (!isAdminRoleFromStorage()) {
+      toast.error("Access denied: admin role is required.");
+      return;
+    }
+
+    if (!window.confirm("Are you sure you want to delete this currency exchange?")) {
+      return;
+    }
+
+    try {
+      const poAccessToken = localStorage.getItem("poAccessToken");
+      if (!poAccessToken) {
+        throw new Error("Access token is missing. Please sign in again.");
+      }
+
+      await deleteCurrencyExchange(poAccessToken, id);
+      await loadAllData();
+      toast.success("Currency exchange deleted successfully");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to delete currency exchange";
       toast.error(message);
     }
   };
@@ -2059,6 +2182,7 @@ export default function Home() {
       currency: selectedLoanFacility.currency,
       annualInterestRate: selectedLoanFacility.annualInterestRate,
       daysInYear: selectedLoanFacility.daysInYear,
+      addRow: Boolean(selectedLoanFacility.addRow),
     })
 
     setShowLoanFacilityModal(true);
@@ -2311,15 +2435,23 @@ export default function Home() {
     }
     const loanFacilities = poAccessToken ? await getLoanFacilities(poAccessToken) : [];
 
-    const [nextCountries, nextCompanies, nextLoans, nextUsersApi, nextCompanyHistory, nextUserHistory] =
-      await Promise.all([
-        getCountries(poAccessToken),
-        getCompanies(poAccessToken),
-        Promise.resolve(loanFacilities),
-        isAdminRoleFromStorage() ? getUsers(poAccessToken) : Promise.resolve([]),
-        mockApi.getCompanyHistory(),
-        mockApi.getUserHistory(),
-      ])
+    const [
+      nextCountries,
+      nextCompanies,
+      nextLoans,
+      nextUsersApi,
+      nextCompanyHistory,
+      nextUserHistory,
+      nextCurrencyExchanges,
+    ] = await Promise.all([
+      getCountries(poAccessToken),
+      getCompanies(poAccessToken),
+      Promise.resolve(loanFacilities),
+      isAdminRoleFromStorage() ? getUsers(poAccessToken) : Promise.resolve([]),
+      mockApi.getCompanyHistory(),
+      mockApi.getUserHistory(),
+      isAdminRoleFromStorage() ? getCurrencyExchanges(poAccessToken) : Promise.resolve([]),
+    ])
 
     setCountries(
       nextCountries.map((country, index) => ({
@@ -2356,6 +2488,8 @@ export default function Home() {
           }))
         : minimalUsersFromSessionForEnsureEditor(),
     )
+
+    setCurrencyExchanges(nextCurrencyExchanges)
 
     setCompanyHistory(
       nextCompanyHistory.map((entry, index) => ({
@@ -2492,6 +2626,7 @@ export default function Home() {
           annualInterestRate: Number(loanForm.annualInterestRate),
           daysInYear: Number(loanForm.daysInYear),
           status: loanForm.status,
+          addRow: loanForm.addRow,
         });
         toast.success("Loan Facility updated successfully.");
       } else {
@@ -2504,6 +2639,7 @@ export default function Home() {
           annualInterestRate: Number(loanForm.annualInterestRate),
           daysInYear: Number(loanForm.daysInYear),
           status: loanForm.status,
+          addRow: loanForm.addRow,
         });
         toast.success("Loan Facility created successfully.");
         if (createdLoan?.id) {
@@ -3172,6 +3308,281 @@ export default function Home() {
                 </div>
               )}
             </div>
+
+            <div className={`rounded-lg p-8 mt-8 ${isDarkMode ? "bg-gray-800" : "bg-gray-50"}`}>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-semibold">Currency conversion</h2>
+                <button
+                  type="button"
+                  onClick={() => handleOpenCurrencyExchangeModal()}
+                  className={companyHeaderButtonClass}
+                >
+                  <PlusIcon className="w-4 h-4" />
+                  Add rate
+                </button>
+              </div>
+
+              <div
+                className={`overflow-x-auto rounded-xl border shadow-sm ${isDarkMode ? "border-gray-700/80 bg-gray-900/30" : "border-gray-200 bg-white"}`}
+              >
+                <table className="w-full text-sm [border-collapse:separate] [border-spacing:0] [&_th]:tracking-wide [&_th]:uppercase [&_th]:text-[11px] [&_th]:font-bold [&_td]:align-middle [&_th]:border [&_td]:border [&_th]:border-slate-300/40 [&_td]:border-slate-300/30">
+                  <thead
+                    className={`${
+                      isDarkMode
+                        ? "bg-gray-700/80 border-gray-600"
+                        : "bg-slate-100 border-gray-300"
+                    } border-b`}
+                  >
+                    <tr>
+                      <th
+                        className={`px-6 py-3 text-left text-sm font-semibold ${
+                          isDarkMode ? "text-gray-100" : "text-gray-900"
+                        }`}
+                      >
+                        Currency
+                      </th>
+                      <th
+                        className={`px-6 py-3 text-left text-sm font-semibold ${
+                          isDarkMode ? "text-gray-100" : "text-gray-900"
+                        }`}
+                      >
+                        Exchange rate
+                      </th>
+                      <th
+                        className={`px-6 py-3 text-left text-sm font-semibold ${
+                          isDarkMode ? "text-gray-100" : "text-gray-900"
+                        }`}
+                      >
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currencyExchanges.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={3}
+                          className={`px-6 py-8 text-center text-sm ${
+                            isDarkMode ? "text-gray-400" : "text-gray-600"
+                          }`}
+                        >
+                          No currency exchanges found. Click &quot;Add rate&quot; to create one.
+                        </td>
+                      </tr>
+                    ) : (
+                      pagedCurrencyExchanges.map((row) => (
+                        <tr
+                          key={row.id}
+                          className={`border-b ${
+                            isDarkMode
+                              ? "border-gray-700 hover:bg-gray-700/50"
+                              : "border-gray-200 hover:bg-gray-100"
+                          } transition`}
+                        >
+                          <td
+                            className={`px-6 py-4 text-sm font-semibold ${
+                              isDarkMode ? "text-gray-100" : "text-gray-900"
+                            }`}
+                          >
+                            {row.currency}
+                          </td>
+                          <td
+                            className={`px-6 py-4 text-sm font-mono ${
+                              isDarkMode ? "text-gray-300" : "text-gray-700"
+                            }`}
+                          >
+                            {Number(row.exchangeRate).toLocaleString("en-GB", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 6,
+                            })}
+                          </td>
+                          <td className="px-6 py-4 text-sm">
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenCurrencyExchangeModal(row)}
+                                className={tableEditButtonClass}
+                                title="Edit"
+                              >
+                                <PencilIcon className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
+                                <span className="text-xs">Edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteCurrencyExchange(row.id)}
+                                className={tableDeleteButtonClass}
+                                title="Delete"
+                              >
+                                <TrashIcon className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
+                                <span className="text-xs">Delete</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {currencyExchanges.length > 0 && (
+                <div
+                  className={`flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between px-4 py-3 border-t ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}
+                >
+                  <div className={`text-xs ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Showing{" "}
+                    <span className="font-semibold">
+                      {currencyExchangesPage * ADMIN_TABLE_PAGE_SIZE + 1}
+                    </span>
+                    {" "}-{" "}
+                    <span className="font-semibold">
+                      {Math.min(
+                        currencyExchanges.length,
+                        (currencyExchangesPage + 1) * ADMIN_TABLE_PAGE_SIZE,
+                      )}
+                    </span>{" "}
+                    of <span className="font-semibold">{currencyExchanges.length}</span>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCurrencyExchangesPage((p) => Math.max(0, p - 1))}
+                      disabled={currencyExchangesPage === 0}
+                      className={`h-9 px-3 rounded-lg text-xs font-semibold border transition ${
+                        currencyExchangesPage === 0
+                          ? isDarkMode
+                            ? "bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed"
+                            : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                          : isDarkMode
+                          ? "bg-gray-800 text-gray-100 border-gray-700 hover:bg-gray-700"
+                          : "bg-white text-gray-900 border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      Prev
+                    </button>
+                    <div
+                      className={`text-xs font-semibold ${isDarkMode ? "text-gray-200" : "text-gray-800"}`}
+                    >
+                      Page {currencyExchangesPage + 1} of {currencyExchangesTotalPages}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCurrencyExchangesPage((p) =>
+                          Math.min(currencyExchangesTotalPages - 1, p + 1),
+                        )
+                      }
+                      disabled={currencyExchangesPage >= currencyExchangesTotalPages - 1}
+                      className={`h-9 px-3 rounded-lg text-xs font-semibold border transition ${
+                        currencyExchangesPage >= currencyExchangesTotalPages - 1
+                          ? isDarkMode
+                            ? "bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed"
+                            : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                          : isDarkMode
+                          ? "bg-gray-800 text-gray-100 border-gray-700 hover:bg-gray-700"
+                          : "bg-white text-gray-900 border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {showCurrencyExchangeModal && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div
+                  className={`rounded-lg p-6 w-full max-w-md ${isDarkMode ? "bg-gray-800" : "bg-white"}`}
+                >
+                  <h3 className="text-xl font-semibold mb-4">
+                    {editingCurrencyExchangeId ? "Edit currency exchange" : "Add currency exchange"}
+                  </h3>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label
+                        className={`block text-sm font-medium mb-1 ${
+                          isDarkMode ? "text-gray-300" : "text-gray-700"
+                        }`}
+                      >
+                        Currency <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={currencyExchangeForm.currency}
+                        onChange={(e) =>
+                          setCurrencyExchangeForm((prev) => ({
+                            ...prev,
+                            currency: e.target.value,
+                          }))
+                        }
+                        placeholder="e.g. EUR"
+                        maxLength={8}
+                        className={`w-full px-3 py-2 border rounded-lg uppercase ${
+                          isDarkMode
+                            ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                            : "bg-white border-gray-300 text-black placeholder-gray-500"
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label
+                        className={`block text-sm font-medium mb-1 ${
+                          isDarkMode ? "text-gray-300" : "text-gray-700"
+                        }`}
+                      >
+                        Exchange rate <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min={0}
+                        value={currencyExchangeForm.exchangeRate}
+                        onChange={(e) =>
+                          setCurrencyExchangeForm((prev) => ({
+                            ...prev,
+                            exchangeRate: e.target.value,
+                          }))
+                        }
+                        placeholder="e.g. 1.08"
+                        className={`w-full px-3 py-2 border rounded-lg ${
+                          isDarkMode
+                            ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                            : "bg-white border-gray-300 text-black placeholder-gray-500"
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 mt-6">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCurrencyExchangeModal(false);
+                        setEditingCurrencyExchangeId(null);
+                        setCurrencyExchangeForm({ currency: "", exchangeRate: "" });
+                      }}
+                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+                        isDarkMode
+                          ? "bg-gray-700 hover:bg-gray-600 text-white"
+                          : "bg-gray-200 hover:bg-gray-300 text-black"
+                      }`}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveCurrencyExchange()}
+                      className="flex-1 px-4 py-2 rounded-lg font-medium transition bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Add/Edit Modal */}
             {showModal && (

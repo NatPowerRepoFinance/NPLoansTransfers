@@ -162,6 +162,7 @@ type LoanFacilityTabProps = {
     currency: LoanFacility["currency"];
     annualInterestRate: number;
     daysInYear: number;
+    addRow: boolean;
   };
   setLoanForm: React.Dispatch<
     React.SetStateAction<{
@@ -173,6 +174,7 @@ type LoanFacilityTabProps = {
       currency: LoanFacility["currency"];
       annualInterestRate: number;
       daysInYear: number;
+      addRow: boolean;
     }>
   >;
   companies: Array<{ id: string; name: string }>;
@@ -347,7 +349,8 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     loanForm.agreementDate === String((selectedLoanFacility as any).agreementDate ?? "") &&
     loanForm.currency === String((selectedLoanFacility as any).currency ?? "") &&
     Number(loanForm.annualInterestRate) === Number((selectedLoanFacility as any).annualInterestRate ?? 0) &&
-    Number(loanForm.daysInYear) === Number((selectedLoanFacility as any).daysInYear ?? 0);
+    Number(loanForm.daysInYear) === Number((selectedLoanFacility as any).daysInYear ?? 0) &&
+    loanForm.addRow === Boolean((selectedLoanFacility as any).addRow ?? (selectedLoanFacility as any).add_row);
   const isLoanFacilityActionDisabled =
     !canEditLoanFacility ||
     isLoanFacilitySubmitDisabled ||
@@ -941,6 +944,24 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                         : "bg-white border-gray-300 text-black placeholder-gray-500"
                     }`}
                   />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label
+                    className={`inline-flex items-center gap-2 text-sm font-medium cursor-pointer select-none ${
+                      isDarkMode ? "text-gray-200" : "text-gray-800"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={loanForm.addRow}
+                      onChange={(e) =>
+                        setLoanForm((prev) => ({ ...prev, addRow: e.target.checked }))
+                      }
+                      className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    Auto add row
+                  </label>
                 </div>
               </div>
 
