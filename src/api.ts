@@ -749,6 +749,24 @@ export const deleteCompany = async (
   }
 };
 
+/** POST multipart/form-data; file field name `file` (adjust if backend expects another key). */
+export const importCompanies = async (poAccessToken: string, file: File): Promise<void> => {
+  const formData = new FormData();
+  formData.append("file", file, file.name);
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/companies/import`, {
+    method: "POST",
+    headers: {
+      "X-Access-Token": poAccessToken,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(await readApiErrorMessage(response, `Failed to import companies (${response.status})`));
+  }
+};
+
 export const getCountries = async (
   poAccessToken: string,
 ): Promise<Array<{ id: number; name: string; code: string }>> => {
