@@ -10,6 +10,53 @@ type ApiEnvelope<T> = {
   data: T;
 };
 
+/** Parses JSON error bodies like `{"code":400,"message":"…","data":null}`. */
+async function readApiErrorMessage(response: Response, fallback: string): Promise<string> {
+  try {
+    const text = await response.text();
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return fallback;
+    }
+    try {
+      const parsed = JSON.parse(trimmed) as {
+        message?: unknown;
+        Message?: unknown;
+        error?: unknown;
+      };
+      const msg = parsed.message ?? parsed.Message;
+      if (typeof msg === "string" && msg.trim()) {
+        return msg.trim();
+      }
+      if (typeof parsed.error === "string" && parsed.error.trim()) {
+        return parsed.error.trim();
+      }
+    } catch {
+      if (trimmed.length <= 280) {
+        return trimmed;
+      }
+    }
+  } catch {
+    /* ignore body read failure */
+  }
+  return fallback;
+}
+
+/** When HTTP is OK but the envelope reports a client/server error code. */
+function throwIfApiEnvelopeError<T>(result: ApiEnvelope<T> | null | undefined, fallback: string): void {
+  if (result == null || typeof result !== "object") {
+    return;
+  }
+  const code = result.code;
+  if (typeof code === "number" && code >= 400) {
+    const msg =
+      typeof result.message === "string" && result.message.trim()
+        ? result.message.trim()
+        : fallback;
+    throw new Error(msg);
+  }
+}
+
 function parseCompanyBankAccountId(account: unknown): number {
   if (account === null || typeof account !== "object") {
     return 0;
@@ -199,6 +246,10 @@ export const ssoLogin = async (idToken: string): Promise<ApiEnvelope<SsoLoginRes
     body: JSON.stringify({}),
   });
 
+  if (!response.ok) {
+    throw new Error(await readApiErrorMessage(response, `SSO login failed (${response.status})`));
+  }
+
   return response.json();
 };
 
@@ -212,10 +263,13 @@ export const getLoanFacilities = async (poAccessToken: string): Promise<LoanFaci
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch loan facilities (${response.status})`);
+    throw new Error(
+      await readApiErrorMessage(response, `Failed to fetch loan facilities (${response.status})`),
+    );
   }
 
   const result = (await response.json()) as ApiEnvelope<any[]>;
+  throwIfApiEnvelopeError(result, `Failed to fetch loan facilities (${response.status})`);
   const rawLoans = Array.isArray(result?.data) ? result.data : [];
 
   return rawLoans.map((loan: any, index: number) => {
@@ -316,10 +370,13 @@ export const getLoanFacilityHistory = async (
   );
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch loan facility history (${response.status})`);
+    throw new Error(
+      await readApiErrorMessage(response, `Failed to fetch loan facility history (${response.status})`),
+    );
   }
 
   const result = (await response.json()) as ApiEnvelope<any[]>;
+  throwIfApiEnvelopeError(result, `Failed to fetch loan facility history (${response.status})`);
   const rawHistory = Array.isArray(result?.data) ? result.data : [];
 
   return rawHistory.map((entry: any, index: number) => ({
@@ -364,7 +421,9 @@ export const createLoanFacilityScheduleRow = async (
   );
 
   if (!response.ok) {
-    throw new Error(`Failed to create schedule row (${response.status})`);
+    throw new Error(
+      await readApiErrorMessage(response, `Failed to create schedule row (${response.status})`),
+    );
   }
 };
 
@@ -387,7 +446,9 @@ export const updateLoanFacilityScheduleRow = async (
   );
 
   if (!response.ok) {
-    throw new Error(`Failed to update schedule row (${response.status})`);
+    throw new Error(
+      await readApiErrorMessage(response, `Failed to update schedule row (${response.status})`),
+    );
   }
 };
 
@@ -408,7 +469,9 @@ export const deleteLoanFacilityScheduleRow = async (
   );
 
   if (!response.ok) {
-    throw new Error(`Failed to delete schedule row (${response.status})`);
+    throw new Error(
+      await readApiErrorMessage(response, `Failed to delete schedule row (${response.status})`),
+    );
   }
 };
 
@@ -426,22 +489,29 @@ export const createLoanFacility = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to create loan facility (${response.status})`);
+    throw new Error(
+      await readApiErrorMessage(response, `Failed to create loan facility (${response.status})`),
+    );
   }
 
+  let body: unknown;
   try {
-    const body = await response.json();
-    const createdId =
-      body?.id ??
-      body?.loanFacilityId ??
-      body?.loan_facility_id ??
-      body?.data?.id ??
-      body?.data?.loanFacilityId;
-
-    return createdId ? { id: String(createdId) } : {};
+    body = await response.json();
   } catch {
     return {};
   }
+  if (body && typeof body === "object" && "code" in body) {
+    throwIfApiEnvelopeError(body as ApiEnvelope<unknown>, `Failed to create loan facility (${response.status})`);
+  }
+  const record = body as Record<string, unknown>;
+  const createdId =
+    record?.id ??
+    record?.loanFacilityId ??
+    record?.loan_facility_id ??
+    (record?.data as Record<string, unknown> | undefined)?.id ??
+    (record?.data as Record<string, unknown> | undefined)?.loanFacilityId;
+
+  return createdId ? { id: String(createdId) } : {};
 };
 
 export const updateLoanFacility = async (
@@ -459,7 +529,9 @@ export const updateLoanFacility = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to update loan facility (${response.status})`);
+    throw new Error(
+      await readApiErrorMessage(response, `Failed to update loan facility (${response.status})`),
+    );
   }
 };
 
@@ -476,7 +548,9 @@ export const deleteLoanFacility = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to delete loan facility (${response.status})`);
+    throw new Error(
+      await readApiErrorMessage(response, `Failed to delete loan facility (${response.status})`),
+    );
   }
 };
 
@@ -500,10 +574,11 @@ export const getCompanies = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch companies (${response.status})`);
+    throw new Error(await readApiErrorMessage(response, `Failed to fetch companies (${response.status})`));
   }
 
   const result = (await response.json()) as ApiEnvelope<CompanyApiItem[]>;
+  throwIfApiEnvelopeError(result, `Failed to fetch companies (${response.status})`);
   const rawCompanies = Array.isArray(result?.data) ? result.data : [];
 
   return rawCompanies.map((company) => ({
@@ -566,10 +641,13 @@ export const getCompaniesHistory = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch companies history (${response.status})`);
+    throw new Error(
+      await readApiErrorMessage(response, `Failed to fetch companies history (${response.status})`),
+    );
   }
 
   const result = (await response.json()) as ApiEnvelope<CompanyHistoryApiItem[]>;
+  throwIfApiEnvelopeError(result, `Failed to fetch companies history (${response.status})`);
   const rows = Array.isArray(result?.data) ? result.data : [];
 
   return rows.map((entry, index) => {
@@ -631,7 +709,7 @@ export const createCompany = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to create company (${response.status})`);
+    throw new Error(await readApiErrorMessage(response, `Failed to create company (${response.status})`));
   }
 };
 
@@ -650,7 +728,7 @@ export const updateCompany = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to update company (${response.status})`);
+    throw new Error(await readApiErrorMessage(response, `Failed to update company (${response.status})`));
   }
 };
 
@@ -667,7 +745,25 @@ export const deleteCompany = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to delete company (${response.status})`);
+    throw new Error(await readApiErrorMessage(response, `Failed to delete company (${response.status})`));
+  }
+};
+
+/** POST multipart/form-data; file field name `file` (adjust if backend expects another key). */
+export const importCompanies = async (poAccessToken: string, file: File): Promise<void> => {
+  const formData = new FormData();
+  formData.append("file", file, file.name);
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/companies/import`, {
+    method: "POST",
+    headers: {
+      "X-Access-Token": poAccessToken,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(await readApiErrorMessage(response, `Failed to import companies (${response.status})`));
   }
 };
 
@@ -683,10 +779,11 @@ export const getCountries = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch countries (${response.status})`);
+    throw new Error(await readApiErrorMessage(response, `Failed to fetch countries (${response.status})`));
   }
 
   const result = (await response.json()) as ApiEnvelope<CountryApiItem[]>;
+  throwIfApiEnvelopeError(result, `Failed to fetch countries (${response.status})`);
   const rawCountries = Array.isArray(result?.data) ? result.data : [];
 
   return rawCountries.map((country, index) => ({
@@ -710,7 +807,7 @@ export const createCountry = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to create country (${response.status})`);
+    throw new Error(await readApiErrorMessage(response, `Failed to create country (${response.status})`));
   }
 };
 
@@ -729,7 +826,7 @@ export const updateCountry = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to update country (${response.status})`);
+    throw new Error(await readApiErrorMessage(response, `Failed to update country (${response.status})`));
   }
 };
 
@@ -746,7 +843,7 @@ export const deleteCountry = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to delete country (${response.status})`);
+    throw new Error(await readApiErrorMessage(response, `Failed to delete country (${response.status})`));
   }
 };
 
@@ -771,10 +868,11 @@ export const getUsers = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch users (${response.status})`);
+    throw new Error(await readApiErrorMessage(response, `Failed to fetch users (${response.status})`));
   }
 
   const result = (await response.json()) as ApiEnvelope<UserApiItem[]>;
+  throwIfApiEnvelopeError(result, `Failed to fetch users (${response.status})`);
   const rawUsers = Array.isArray(result?.data) ? result.data : [];
 
   return rawUsers.map((user, index) => ({
@@ -814,10 +912,13 @@ export const getUsersHistory = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch users history (${response.status})`);
+    throw new Error(
+      await readApiErrorMessage(response, `Failed to fetch users history (${response.status})`),
+    );
   }
 
   const result = (await response.json()) as ApiEnvelope<UserHistoryApiItem[]>;
+  throwIfApiEnvelopeError(result, `Failed to fetch users history (${response.status})`);
   const rows = Array.isArray(result?.data) ? result.data : [];
 
   return rows.map((entry, index) => {
@@ -878,7 +979,7 @@ export const createUser = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to create user (${response.status})`);
+    throw new Error(await readApiErrorMessage(response, `Failed to create user (${response.status})`));
   }
 };
 
@@ -897,7 +998,7 @@ export const updateUser = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to update user (${response.status})`);
+    throw new Error(await readApiErrorMessage(response, `Failed to update user (${response.status})`));
   }
 };
 
@@ -914,7 +1015,7 @@ export const deleteUser = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to delete user (${response.status})`);
+    throw new Error(await readApiErrorMessage(response, `Failed to delete user (${response.status})`));
   }
 };
 
@@ -937,10 +1038,13 @@ export const getCountrySummaryReport = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch country summary report (${response.status})`);
+    throw new Error(
+      await readApiErrorMessage(response, `Failed to fetch country summary report (${response.status})`),
+    );
   }
 
   const result = (await response.json()) as ApiEnvelope<CountrySummaryReportItem[]>;
+  throwIfApiEnvelopeError(result, `Failed to fetch country summary report (${response.status})`);
   const rows = Array.isArray(result?.data) ? result.data : [];
 
   return rows
@@ -975,10 +1079,19 @@ export const getCountrySummaryLoansReport = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch country loan summary report (${response.status})`);
+    throw new Error(
+      await readApiErrorMessage(
+        response,
+        `Failed to fetch country loan summary report (${response.status})`,
+      ),
+    );
   }
 
   const result = (await response.json()) as ApiEnvelope<CountrySummaryLoanReportItem[]>;
+  throwIfApiEnvelopeError(
+    result,
+    `Failed to fetch country loan summary report (${response.status})`,
+  );
   const rows = Array.isArray(result?.data) ? result.data : [];
 
   return rows
@@ -1022,6 +1135,8 @@ export const importLoanFacilitySchedule = async (
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to import schedule file (${response.status})`);
+    throw new Error(
+      await readApiErrorMessage(response, `Failed to import schedule file (${response.status})`),
+    );
   }
 };

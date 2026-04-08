@@ -45,6 +45,7 @@ import {
   deleteUser,
   getCompanies,
   getCountries,
+  importCompanies,
   importLoanFacilitySchedule,
   getLoanFacilities,
   getLoanFacilityHistory,
@@ -842,61 +843,30 @@ export default function Home() {
       return;
     }
 
+    setImportCompanyError(null);
+
     try {
-      const buffer = await importCompanyFile.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: "array" });
-      const firstSheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[firstSheetName];
-      const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-        defval: "",
-      });
-
-      const normalizedRows = rawRows
-        .map((row, index) => {
-          const idValue = row.ID ?? row.id ?? String(index + 1);
-          const name = String(row.Name ?? row.name ?? "").trim();
-          const sapCode = String(row["SAP Code"] ?? row.sapCode ?? row.sAPCode ?? "").trim();
-          const type = String(row.Type ?? row.type ?? "").trim();
-          const country = String(row.Country ?? row.country ?? "").trim();
-          const bankAccounts = String(
-            row["Bank Accounts"] ?? row.bankAccounts ?? row.bankAccount ?? ""
-          ).trim();
-
-          return {
-            id: String(idValue || index + 1),
-            name,
-            sapCode,
-            type,
-            country,
-            bankAccounts,
-          } as Company;
-        })
-        .filter(
-          (row) =>
-            row.name &&
-            row.sapCode &&
-            row.type &&
-            row.country &&
-            row.bankAccounts
-        );
-
-      if (normalizedRows.length === 0) {
-        setImportCompanyError("No valid company rows found in import file.");
-        return;
+      const poAccessToken = localStorage.getItem("poAccessToken");
+      if (!poAccessToken) {
+        throw new Error("Access token is missing. Please sign in again.");
       }
 
-      setCompanies(normalizedRows);
+      await importCompanies(poAccessToken, importCompanyFile);
+      await loadAllData();
+
       addCompanyHistoryEntry(
         "IMPORT",
         "Bulk Import",
-        `Imported ${normalizedRows.length} companies from ${importCompanyFile.name}`
+        `Imported companies from file: ${importCompanyFile.name}`,
       );
-      toast.success(`Imported ${normalizedRows.length} companies`);
+      toast.success("Companies imported successfully");
       setIsImportCompanyModalOpen(false);
       setImportCompanyFile(null);
-      setImportCompanyError(null);
-    } catch {
-      setImportCompanyError("Failed to import companies file.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to import companies file.";
+      setImportCompanyError(message);
+      toast.error(message);
     }
   };
 
