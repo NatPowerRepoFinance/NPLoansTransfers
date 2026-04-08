@@ -110,6 +110,7 @@ type CreateLoanFacilityPayload = {
   annualInterestRate: number;
   daysInYear: number;
   status: LoanFacility["status"];
+  addRow: boolean;
 };
 
 type UpdateLoanFacilityPayload = CreateLoanFacilityPayload;
@@ -290,6 +291,7 @@ export const getLoanFacilities = async (poAccessToken: string): Promise<LoanFaci
       currency: (loan?.currency ?? "EUR") as LoanFacility["currency"],
       annualInterestRate: Number(loan?.annualInterestRate ?? loan?.annual_interest_rate ?? 0),
       daysInYear: Number(loan?.daysInYear ?? loan?.days_in_year ?? 365),
+      addRow: Boolean(loan?.addRow ?? loan?.add_row ?? false),
       schedule: Array.isArray(loan?.schedule) ? loan.schedule : [],
       history: Array.isArray(loan?.history) ? loan.history : [],
       createdAt: String(loan?.createdAt ?? loan?.created_at ?? new Date().toISOString()),
@@ -764,6 +766,106 @@ export const importCompanies = async (poAccessToken: string, file: File): Promis
 
   if (!response.ok) {
     throw new Error(await readApiErrorMessage(response, `Failed to import companies (${response.status})`));
+  }
+};
+
+type CurrencyExchangeApiItem = {
+  id?: number | string;
+  currency?: string;
+  exchangeRate?: number;
+  exchange_rate?: number;
+};
+
+export type CurrencyExchangePayload = {
+  currency: string;
+  exchangeRate: number;
+};
+
+export const getCurrencyExchanges = async (
+  poAccessToken: string,
+): Promise<Array<{ id: string; currency: string; exchangeRate: number }>> => {
+  const response = await fetch(`${API_BASE_URL}/api/v1/currency-exchanges`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Access-Token": poAccessToken,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      await readApiErrorMessage(response, `Failed to fetch currency exchanges (${response.status})`),
+    );
+  }
+
+  const result = (await response.json()) as ApiEnvelope<CurrencyExchangeApiItem[]>;
+  throwIfApiEnvelopeError(result, `Failed to fetch currency exchanges (${response.status})`);
+  const rows = Array.isArray(result?.data) ? result.data : [];
+
+  return rows.map((row, index) => ({
+    id: String(row?.id ?? index + 1),
+    currency: String(row?.currency ?? ""),
+    exchangeRate: Number(row?.exchangeRate ?? row?.exchange_rate ?? 0),
+  }));
+};
+
+export const createCurrencyExchange = async (
+  poAccessToken: string,
+  payload: CurrencyExchangePayload,
+): Promise<void> => {
+  const response = await fetch(`${API_BASE_URL}/api/v1/currency-exchanges`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Access-Token": poAccessToken,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      await readApiErrorMessage(response, `Failed to create currency exchange (${response.status})`),
+    );
+  }
+};
+
+export const updateCurrencyExchange = async (
+  poAccessToken: string,
+  exchangeId: string,
+  payload: CurrencyExchangePayload,
+): Promise<void> => {
+  const response = await fetch(`${API_BASE_URL}/api/v1/currency-exchanges/${exchangeId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Access-Token": poAccessToken,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      await readApiErrorMessage(response, `Failed to update currency exchange (${response.status})`),
+    );
+  }
+};
+
+export const deleteCurrencyExchange = async (
+  poAccessToken: string,
+  exchangeId: string,
+): Promise<void> => {
+  const response = await fetch(`${API_BASE_URL}/api/v1/currency-exchanges/${exchangeId}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Access-Token": poAccessToken,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      await readApiErrorMessage(response, `Failed to delete currency exchange (${response.status})`),
+    );
   }
 };
 
