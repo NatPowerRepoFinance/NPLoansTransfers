@@ -260,31 +260,52 @@ function isAdminRoleFromStorage(): boolean {
   return (localStorage.getItem("user_role") ?? "").trim().toLowerCase() === "admin";
 }
 
+function parseJwtPayload(token: string): {
+  email?: string;
+  preferred_username?: string;
+  unique_name?: string;
+  upn?: string;
+} | null {
+  try {
+    const raw = token.split(".")[1];
+    if (!raw) {
+      return null;
+    }
+    const normalized = raw.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    return JSON.parse(atob(padded)) as {
+      email?: string;
+      preferred_username?: string;
+      unique_name?: string;
+      upn?: string;
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Same identity as the minimal user row: `user_email` first, else common JWT claims.
+ * Keeps `ensureUser` / `ensureEditor` aligned with `minimalUsersFromSessionForEnsureEditor`.
+ */
+function sessionEmailForMatching(): string {
+  let email = (localStorage.getItem("user_email") ?? "").trim();
+  const token = localStorage.getItem("poAccessToken");
+  if (!email && token) {
+    const payload = parseJwtPayload(token);
+    email = String(
+      payload?.email ?? payload?.preferred_username ?? payload?.unique_name ?? payload?.upn ?? "",
+    ).trim();
+  }
+  return email;
+}
+
 /**
  * When `/api/v1/users` is not called for non-admins, keep a one-row list so `ensureEditor` can
  * match the signed-in user by email.
  */
 function minimalUsersFromSessionForEnsureEditor(): User[] {
-  let email = (localStorage.getItem("user_email") ?? "").trim();
-  const token = localStorage.getItem("poAccessToken");
-  if (!email && token) {
-    try {
-      const raw = token.split(".")[1];
-      if (raw) {
-        const payload = JSON.parse(atob(raw)) as {
-          email?: string;
-          preferred_username?: string;
-          unique_name?: string;
-          upn?: string;
-        };
-        email = String(
-          payload?.email ?? payload?.preferred_username ?? payload?.unique_name ?? payload?.upn ?? "",
-        ).trim();
-      }
-    } catch {
-      /* ignore */
-    }
-  }
+  const email = sessionEmailForMatching();
 
   const firstName = (localStorage.getItem("user_first_name") ?? "").trim();
   const lastName = (localStorage.getItem("user_last_name") ?? "").trim();
@@ -2395,37 +2416,41 @@ export default function Home() {
   };
 
   const ensureUser = (): MockUser => {
-    const email = localStorage.getItem("user_email") || users[0]?.email || "system@local";
+    const email =
+      sessionEmailForMatching() ||
+      (users[0]?.email ?? "").trim() ||
+      "system@local";
     const matchedUser = users.find(
-      (candidate) => candidate.email.toLowerCase() === email.toLowerCase(),
+      (candidate) =>
+        candidate.email.toLowerCase().trim() === email.toLowerCase().trim(),
     );
 
     return {
-      id: matchedUser?.id || "system",
-      name: matchedUser
-        ? `${matchedUser.firstName} ${matchedUser.lastName}`.trim()
-        : "System",
+      id: matchedUser?.id || "session",
+      name:
+        (matchedUser
+          ? `${matchedUser.firstName} ${matchedUser.lastName}`.trim()
+          : `${(localStorage.getItem("user_first_name") ?? "").trim()} ${(localStorage.getItem("user_last_name") ?? "").trim()}`.trim()) ||
+        "User",
       email,
     };
   };
 
   const ensureEditor = (): MockUser => {
-    const user = ensureUser()
-    const accessUser = users.find(
-      (candidate) => candidate.email.toLowerCase() === user.email.toLowerCase(),
-    )
-
-    if (!accessUser) {
-      toast.error('Access denied: this email is not in the approved user list')
-      throw new Error('Access denied: this email is not in the approved user list')
+    const user = ensureUser();
+    const token = localStorage.getItem("poAccessToken");
+    const roleFromStorage = (localStorage.getItem("user_role") ?? "").trim().toLowerCase();
+    if (!token) {
+      toast.error("Access token is missing. Please sign in again.");
+      throw new Error("Access token is missing. Please sign in again.");
     }
 
-    if (accessUser.role !== 'Editor' && accessUser.role !== 'Admin') {
+    if (roleFromStorage !== "editor" && roleFromStorage !== "admin") {
       toast.error('Access denied: editor role is required for this action')
       throw new Error('Access denied: editor role is required for this action')
     }
 
-    return user
+    return user;
   };
 
   const loadAllData = useCallback(async () => {
