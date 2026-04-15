@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeftIcon, MoonIcon, SunIcon, PlusIcon, PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, MoonIcon, SunIcon, PlusIcon, PencilIcon, TrashIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { isRiskAdmin } from "@/lib/riskUtils";
 import { toast } from "react-toastify";
 
@@ -304,9 +304,19 @@ export default function AdminAccess() {
               isDarkMode ? "bg-gray-800" : "bg-white"
             }`}
           >
-            <h3 className="text-xl font-semibold mb-4">
-              {editingId ? "Edit Company" : "Add Company"}
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold">
+                {editingId ? "Edit Company" : "Add Company"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="text-gray-400 hover:text-gray-500 rounded-lg p-2 transition-colors duration-200"
+                title="Close"
+              >
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+            </div>
 
             <div className="space-y-4">
               <div>

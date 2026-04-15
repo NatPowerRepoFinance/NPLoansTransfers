@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { PlusIcon, PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { createPortal } from "react-dom";
+import { PlusIcon, PencilIcon, TrashIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { toast } from "react-toastify";
 
 interface Company {
@@ -241,13 +242,6 @@ export default function AdminTab({ isDarkMode }: AdminTabProps) {
                     isDarkMode ? "text-gray-100" : "text-gray-900"
                   }`}
                 >
-                  ID
-                </th>
-                <th
-                  className={`px-6 py-3 text-left text-sm font-semibold ${
-                    isDarkMode ? "text-gray-100" : "text-gray-900"
-                  }`}
-                >
                   Name
                 </th>
                 <th
@@ -291,7 +285,7 @@ export default function AdminTab({ isDarkMode }: AdminTabProps) {
               {companies.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={6}
                     className={`px-6 py-8 text-center text-sm ${
                       isDarkMode ? "text-gray-400" : "text-gray-600"
                     }`}
@@ -309,13 +303,6 @@ export default function AdminTab({ isDarkMode }: AdminTabProps) {
                         : "border-gray-200 hover:bg-gray-100"
                     } transition`}
                   >
-                    <td
-                      className={`px-6 py-4 text-sm font-mono ${
-                        isDarkMode ? "text-gray-300" : "text-gray-700"
-                      }`}
-                    >
-                      {company.id}
-                    </td>
                     <td
                       className={`px-6 py-4 text-sm ${
                         isDarkMode ? "text-gray-100" : "text-gray-900"
@@ -469,13 +456,6 @@ export default function AdminTab({ isDarkMode }: AdminTabProps) {
                     isDarkMode ? "text-gray-100" : "text-gray-900"
                   }`}
                 >
-                  ID
-                </th>
-                <th
-                  className={`px-6 py-3 text-left text-sm font-semibold ${
-                    isDarkMode ? "text-gray-100" : "text-gray-900"
-                  }`}
-                >
                   Name
                 </th>
                 <th
@@ -498,7 +478,7 @@ export default function AdminTab({ isDarkMode }: AdminTabProps) {
               {countries.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={3}
                     className={`px-6 py-8 text-center text-sm ${
                       isDarkMode ? "text-gray-400" : "text-gray-600"
                     }`}
@@ -516,13 +496,6 @@ export default function AdminTab({ isDarkMode }: AdminTabProps) {
                         : "border-gray-200 hover:bg-gray-100"
                     } transition`}
                   >
-                    <td
-                      className={`px-6 py-4 text-sm font-mono ${
-                        isDarkMode ? "text-gray-300" : "text-gray-700"
-                      }`}
-                    >
-                      {country.id}
-                    </td>
                     <td
                       className={`px-6 py-4 text-sm ${
                         isDarkMode ? "text-gray-100" : "text-gray-900"
@@ -620,21 +593,28 @@ export default function AdminTab({ isDarkMode }: AdminTabProps) {
                 Next
               </button>
             </div>
-          </div>
-        )}
-      </div>
-
       {/* Add/Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div
-            className={`rounded-lg p-6 w-full max-w-md ${
-              isDarkMode ? "bg-gray-800" : "bg-white"
-            }`}
-          >
-            <h3 className="text-xl font-semibold mb-4">
-              {editingId ? "Edit Company" : "Add Company"}
-            </h3>
+      {showModal && createPortal(
+        <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div
+              className={`relative rounded-lg p-6 w-full max-w-2xl shadow-xl ${
+                isDarkMode ? "bg-gray-800" : "bg-white"
+              }`}
+            >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold">
+                {editingId ? "Edit Company" : "Add Company"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="text-gray-400 hover:text-gray-500 rounded-lg p-2 transition-colors duration-200"
+                title="Close"
+              >
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+            </div>
 
             <div className="space-y-4">
               <div>
@@ -765,20 +745,33 @@ export default function AdminTab({ isDarkMode }: AdminTabProps) {
                 {editingId ? "Update" : "Add"}
               </button>
             </div>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {showCountryModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div
-            className={`rounded-lg p-6 w-full max-w-md ${
-              isDarkMode ? "bg-gray-800" : "bg-white"
-            }`}
-          >
-            <h3 className="text-xl font-semibold mb-4">
-              {editingCountryId !== null ? "Edit Country" : "Add Country"}
-            </h3>
+      {showCountryModal && createPortal(
+        <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div
+              className={`relative rounded-lg p-6 w-full max-w-lg shadow-xl ${
+                isDarkMode ? "bg-gray-800" : "bg-white"
+              }`}
+            >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold">
+                {editingCountryId !== null ? "Edit Country" : "Add Country"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowCountryModal(false)}
+                className="text-gray-400 hover:text-gray-500 rounded-lg p-2 transition-colors duration-200"
+                title="Close"
+              >
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+            </div>
 
             <div className="space-y-4">
               <div>
@@ -850,8 +843,10 @@ export default function AdminTab({ isDarkMode }: AdminTabProps) {
                 {editingCountryId !== null ? "Update" : "Add"}
               </button>
             </div>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
