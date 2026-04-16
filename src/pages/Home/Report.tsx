@@ -58,7 +58,7 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
   >([]);
 
   const computedCountrySummary = useMemo(() => {
-    const summary = new Map<
+    const finalSummary = new Map<
       string,
       { cumulativeInterest: number; cumulativePrincipal: number; total: number }
     >();
@@ -107,23 +107,48 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
         total += rowTotal;
       }
 
-      const current = summary.get(country) ?? {
+      const current = finalSummary.get(country) ?? {
         cumulativeInterest: 0,
         cumulativePrincipal: 0,
         total: 0,
       };
 
-      summary.set(country, {
+      finalSummary.set(country, {
         cumulativeInterest: current.cumulativeInterest + cumulativeInterest,
         cumulativePrincipal: current.cumulativePrincipal + cumulativePrincipal,
         total: current.total + total,
       });
     }
 
-    return Array.from(summary.entries())
+    // Merge logic: If we have API data, it might contain countries we haven't loaded schedules for yet.
+    // We prioritize computed data (as it's current session accuracy) and add/update from API.
+    const mergedSummary = new Map(finalSummary);
+
+    for (const apiRow of apiCountrySummary) {
+      if (!mergedSummary.has(apiRow.country)) {
+        mergedSummary.set(apiRow.country, {
+          cumulativeInterest: apiRow.cumulativeInterest ?? 0,
+          cumulativePrincipal: apiRow.cumulativePrincipal ?? 0,
+          total: apiRow.total ?? 0,
+        });
+      } else {
+        // If we have both, we trust computed more if it's non-zero,
+        // but if computed is 0 (empty schedules), we trust API.
+        const comp = mergedSummary.get(apiRow.country)!;
+        if (comp.total === 0) {
+          mergedSummary.set(apiRow.country, {
+            cumulativeInterest: apiRow.cumulativeInterest ?? 0,
+            cumulativePrincipal: apiRow.cumulativePrincipal ?? 0,
+            total: apiRow.total ?? 0,
+          });
+        }
+      }
+    }
+
+    return Array.from(mergedSummary.entries())
       .map(([country, values]) => ({ country, ...values }))
       .sort((first, second) => first.country.localeCompare(second.country));
-  }, [loans, companies]);
+  }, [loans, companies, apiCountrySummary]);
 
   useEffect(() => {
     const poAccessToken = localStorage.getItem("poAccessToken");
@@ -162,7 +187,7 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
     };
   }, []);
 
-  const countrySummary = apiCountrySummary.length > 0 ? apiCountrySummary : computedCountrySummary;
+  const countrySummary = computedCountrySummary;
   const countrySummaryTotalPages = Math.max(
     1,
     Math.ceil(countrySummary.length / REPORT_TABLE_PAGE_SIZE)
@@ -235,8 +260,53 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
         return first.country.localeCompare(second.country);
       });
   }, [loans, companies]);
-  const loanDetailSummary =
-    apiLoanDetailSummary.length > 0 ? apiLoanDetailSummary : computedLoanDetailSummary;
+
+  const loanDetailSummary = useMemo(() => {
+    // Merge Strategy: Prefer computed for any loan with a non-empty schedule.
+    // Otherwise fallback to API results.
+    const merged = [...computedLoanDetailSummary];
+
+    for (const apiRow of apiLoanDetailSummary) {
+      const loanFacilityName = apiRow.loanFacility;
+      const index = merged.findIndex((m) => m.loanFacility === loanFacilityName);
+
+      if (index === -1) {
+        // Add new from API if not in our base list
+        merged.push({
+          country: apiRow.country,
+          loanFacility: loanFacilityName,
+          lender: apiRow.lender,
+          borrower: apiRow.borrower,
+          cumulativePrincipal: apiRow.cumulativePrincipal ?? 0,
+          cumulativeInterest: apiRow.cumulativeInterest ?? 0,
+          total: apiRow.total,
+        });
+      } else {
+        // If in our list, check if we have a non-empty schedule for it
+        const originalLoan = loans.find((l) => l.name === loanFacilityName);
+        const hasLoadedSchedule =
+          originalLoan && Array.isArray(originalLoan.schedule) && originalLoan.schedule.length > 0;
+
+        if (!hasLoadedSchedule) {
+          // Overwrite with API data if our computed is likely empty
+          merged[index] = {
+            ...merged[index],
+            cumulativePrincipal: apiRow.cumulativePrincipal ?? 0,
+            cumulativeInterest: apiRow.cumulativeInterest ?? 0,
+            total: apiRow.total,
+          };
+        }
+      }
+    }
+
+    return merged.sort((first, second) => {
+      if (first.country === second.country) {
+        return first.loanFacility.localeCompare(second.loanFacility);
+      }
+      return first.country.localeCompare(second.country);
+    });
+  }, [computedLoanDetailSummary, apiLoanDetailSummary, loans]);
+
   const loanDetailSummaryTotalPages = Math.max(
     1,
     Math.ceil(loanDetailSummary.length / REPORT_TABLE_PAGE_SIZE)
@@ -319,7 +389,10 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
       new maplibregl.Marker({ element: markerEl })
         .setLngLat(coordinate)
         .setPopup(
-          new maplibregl.Popup({ offset: 12 }).setHTML(
+          new maplibregl.Popup({ 
+            offset: 12,
+            className: isDarkMode ? 'maplibre-dark-popup' : ''
+          }).setHTML(
             `<div><strong>${row.country}</strong><br/>Cumulative Interest: ${formatCurrency(
               row.cumulativeInterest
             )}<br/>Cumulative Principal: ${formatCurrency(
@@ -366,11 +439,23 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
 
   const exportReportToPDF = () => {
     const doc = new jsPDF({ orientation: "landscape" });
-    doc.setFontSize(14);
-    doc.text("Country Summary Report", 14, 16);
+    doc.setFontSize(16);
+    doc.text("Loans & Transfers - Country Summary Report", 14, 16);
+
+    doc.setFontSize(10);
+    const exportDate = new Date().toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+    doc.text(`Exported Date: ${exportDate}`, 14, 24);
+    doc.text(`Total Amount of Data (Total Exposure): ${formatCurrency(reportKpis.total)}`, 14, 30);
 
     autoTable(doc, {
-      startY: 22,
+      startY: 36,
       head: [["Country", "Cumulative Interest", "Cumulative Principal", "Total"]],
       body: countrySummary.map((row) => [
         row.country,
@@ -410,6 +495,59 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
   const exportReportToPPT = () => {
     const pptx = new PptxGenJS();
     pptx.layout = "LAYOUT_WIDE";
+
+    // Summary Slide
+    const summarySlide = pptx.addSlide();
+    summarySlide.addText("Loans & Transfers - Report Summary", {
+      x: 0.5,
+      y: 1.0,
+      w: 12,
+      h: 0.8,
+      fontSize: 32,
+      bold: true,
+      color: "003366",
+      align: "center",
+    });
+
+    const exportDateString = new Date().toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+
+    summarySlide.addText(`Exported Date: ${exportDateString}`, {
+      x: 0.5,
+      y: 2.5,
+      w: 12,
+      h: 0.5,
+      fontSize: 18,
+      color: "666666",
+      align: "center",
+    });
+
+    summarySlide.addText(`Total Amount of Data (Total Exposure): ${formatCurrency(reportKpis.total)}`, {
+      x: 0.5,
+      y: 3.5,
+      w: 12,
+      h: 0.5,
+      fontSize: 24,
+      bold: true,
+      color: "003366",
+      align: "center",
+    });
+
+    summarySlide.addText(`Countries Included: ${reportKpis.countries}`, {
+      x: 0.5,
+      y: 4.5,
+      w: 12,
+      h: 0.5,
+      fontSize: 18,
+      color: "666666",
+      align: "center",
+    });
 
     const slideOne = pptx.addSlide();
     slideOne.addText("Country Summary Report", {

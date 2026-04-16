@@ -1,5 +1,6 @@
 import { formattedDate } from "@/lib/utils";
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { TransText } from "./TransText";
 import { useAuth } from "@/lib/authProvider";
 import { useErpIframe } from "@/lib/erpIframeContext";
@@ -53,9 +54,10 @@ const POHistoryButton = ({ po_change_log }: POHistoryButtonProps) => {
         <i className="pi pi-history text-lg transition-transform group-hover:scale-110" />
       </button>
 
-      {showHistory && (
-        <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center">
-          <div className={`rounded-lg shadow-lg w-full max-w-md p-4 ${erpIframe ? "bg-[#1D2636] text-white" : "bg-white text-black"}`}>
+      {showHistory && createPortal(
+        <div className="fixed inset-0 z-50 bg-black/50 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className={`relative rounded-lg shadow-xl w-full max-w-md p-4 ${erpIframe ? "bg-[#1D2636] text-white" : "bg-white text-black"}`}>
             <div className="flex justify-between items-center mb-4">
               <h2 className={`text-lg font-semibold ${erpIframe ? "text-white" : "text-[#1D2636]"}`}>
                 <TransText text="PO Change History" lang={lang} />
@@ -103,8 +105,10 @@ const POHistoryButton = ({ po_change_log }: POHistoryButtonProps) => {
                 <TransText text="Close" lang={lang} />
               </button>
             </div>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
