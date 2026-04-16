@@ -194,7 +194,6 @@ type LoanFacilityTabProps = {
   handleScheduleImportFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   importScheduleMode: "overwrite" | "extend";
   setImportScheduleMode: (value: "overwrite" | "extend") => void;
-  errorMessage: string | null;
   closeImportScheduleModal: () => void;
   handleImportSchedule: () => void;
   showScheduleRowModal: boolean;
@@ -270,7 +269,6 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     handleScheduleImportFileChange,
     importScheduleMode,
     setImportScheduleMode,
-    errorMessage,
     closeImportScheduleModal,
     handleImportSchedule,
     showScheduleRowModal,
