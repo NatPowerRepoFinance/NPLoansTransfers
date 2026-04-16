@@ -773,6 +773,15 @@ export default function Home() {
       return;
     }
 
+    const sapCode = formData.sapCode.trim().toUpperCase();
+    const isDuplicate = companies.some(
+      (c) => c.sapCode.toUpperCase() === sapCode && c.id !== editingId
+    );
+    if (isDuplicate) {
+      toast.error(`Company with SAP Code "${sapCode}" already exists.`);
+      return;
+    }
+
     if (editingId) {
       try {
         const poAccessToken = localStorage.getItem("poAccessToken");
@@ -1031,6 +1040,15 @@ export default function Home() {
       return;
     }
 
+    const email = userFormData.email.trim().toLowerCase();
+    const isDuplicate = users.some(
+      (u) => u.email.toLowerCase() === email && u.id !== editingUserId
+    );
+    if (isDuplicate) {
+      toast.error(`User with email "${email}" already exists.`);
+      return;
+    }
+
     try {
       const poAccessToken = localStorage.getItem("poAccessToken");
       if (!poAccessToken) {
@@ -1243,6 +1261,13 @@ export default function Home() {
     }
 
     const normalizedCode = countryFormData.countryCode.trim().toUpperCase();
+    const isDuplicate = countries.some(
+      (c) => c.countryCode.toUpperCase() === normalizedCode && c.id !== editingCountryId
+    );
+    if (isDuplicate) {
+      toast.error(`Country with code "${normalizedCode}" already exists.`);
+      return;
+    }
 
     try {
       const poAccessToken = localStorage.getItem("poAccessToken");
@@ -1329,6 +1354,15 @@ export default function Home() {
       toast.error("Please enter a currency code.");
       return;
     }
+
+    const isDuplicate = currencyExchanges.some(
+      (ex) => ex.currency.toUpperCase() === currency && ex.id !== editingCurrencyExchangeId
+    );
+    if (isDuplicate) {
+      toast.error(`Currency "${currency}" already exists.`);
+      return;
+    }
+
     if (!Number.isFinite(rate)) {
       toast.error("Please enter a valid exchange rate.");
       return;
@@ -1719,6 +1753,7 @@ export default function Home() {
     }
 
     if (!importScheduleFile) {
+      toast.error("Please choose a file to import.");
       setErrorMessage("Please choose a file to import.");
       return;
     }
@@ -3691,7 +3726,7 @@ export default function Home() {
                           : "bg-indigo-600 hover:bg-indigo-700 text-white"
                       }`}
                     >
-                      Save
+                      {editingCurrencyExchangeId ? "Update" : "Add"}
                     </button>
                   </div>
                   </div>
