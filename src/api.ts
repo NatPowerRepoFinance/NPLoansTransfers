@@ -752,11 +752,18 @@ export const deleteCompany = async (
 };
 
 /** POST multipart/form-data; file field name `file` (adjust if backend expects another key). */
-export const importCompanies = async (poAccessToken: string, file: File): Promise<void> => {
+export const importCompanies = async (
+  poAccessToken: string,
+  file: File,
+  mode: "overwrite" | "extend" = "extend",
+): Promise<void> => {
+  const endpoint = new URL(`${API_BASE_URL}/api/v1/companies/import`);
+  endpoint.searchParams.set("mode", mode);
+
   const formData = new FormData();
   formData.append("file", file, file.name);
 
-  const response = await fetch(`${API_BASE_URL}/api/v1/companies/import`, {
+  const response = await fetch(endpoint.toString(), {
     method: "POST",
     headers: {
       "X-Access-Token": poAccessToken,

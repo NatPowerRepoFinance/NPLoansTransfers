@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import type { ITooltipParams } from "ag-grid-community";
 import { Bounce, toast, ToastContainer } from "react-toastify";
 import dummyData from "@/lib/api/dummyRisks.json";
@@ -20,6 +21,7 @@ import {
   TableCellsIcon,
   ArrowDownTrayIcon,
   ArrowUpTrayIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import useConfirmDialog from "@/components/confirmDialog";
 import * as XLSX from "xlsx";
@@ -441,6 +443,8 @@ export default function Home() {
   const [editingScheduleRowIndex, setEditingScheduleRowIndex] = useState<number | null>(null);
    const [isImportScheduleModalOpen, setIsImportScheduleModalOpen] = useState(false)
   const [importScheduleMode, setImportScheduleMode] = useState<'overwrite' | 'extend'>('extend')
+  const [importCompanyMode, setImportCompanyMode] = useState<'overwrite' | 'extend'>('extend')
+  const [importUserMode, setImportUserMode] = useState<'overwrite' | 'extend'>('extend')
   const [importScheduleFile, setImportScheduleFile] = useState<File | null>(null)
   const [scheduleForm, setScheduleForm] = useState({
     startDate: "",
@@ -503,7 +507,7 @@ export default function Home() {
     !formData.sapCode.trim() ||
     !formData.type.trim() ||
     !formData.country.trim() ||
-    formData.bankAccounts.map((account) => account.trim()).filter(Boolean).length === 0;
+    formData.bankAccounts.some((account) => !account.trim());
   const editingCompany = editingId
     ? companies.find((company) => String(company.id) === String(editingId))
     : null;
@@ -916,7 +920,6 @@ export default function Home() {
 
   const exportCompaniesToExcel = () => {
     const rows = companies.map((company) => ({
-      ID: company.id,
       Name: company.name,
       "SAP Code": company.sapCode,
       Type: company.type,
@@ -980,17 +983,24 @@ export default function Home() {
         throw new Error("Access token is missing. Please sign in again.");
       }
 
-      await importCompanies(poAccessToken, importCompanyFile);
+      if (importCompanyMode === 'overwrite') {
+        if (!window.confirm("WARNING: Overwrite mode will replace all existing company data with the data from this file. Are you sure you want to proceed?")) {
+          return;
+        }
+      }
+
+      await importCompanies(poAccessToken, importCompanyFile, importCompanyMode);
       await loadAllData();
 
       addCompanyHistoryEntry(
         "IMPORT",
         "Bulk Import",
-        `Imported companies from file: ${importCompanyFile.name}`,
+        `Imported companies from file: ${importCompanyFile.name} (Mode: ${importCompanyMode})`,
       );
       toast.success("Companies imported successfully");
       setIsImportCompanyModalOpen(false);
       setImportCompanyFile(null);
+      setImportCompanyMode('extend');
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to import companies file.";
@@ -1103,7 +1113,6 @@ export default function Home() {
 
   const exportUsersToExcel = () => {
     const rows = users.map((user) => ({
-      ID: user.id,
       "First Name": user.firstName,
       "Last Name": user.lastName,
       "Email Address": user.email,
@@ -1120,8 +1129,8 @@ export default function Home() {
 
   const downloadUserTemplate = () => {
     const templateRows = [
-      ["ID", "First Name", "Last Name", "Email Address", "Role", "Country"],
-      ["1", "John", "Doe", "john@example.com", "Admin", "United Kingdom"],
+      ["First Name", "Last Name", "Email Address", "Role", "Country"],
+      ["John", "Doe", "john@example.com", "Admin", "United Kingdom"],
     ];
 
     const worksheet = XLSX.utils.aoa_to_sheet(templateRows);
@@ -1189,11 +1198,22 @@ export default function Home() {
         return;
       }
 
-      setUsers(normalizedRows);
-      addUserHistoryEntry("IMPORT", "Bulk Import", `Imported ${normalizedRows.length} users from ${importUserFile.name}`);
+      if (importUserMode === 'overwrite') {
+        if (!window.confirm("WARNING: Overwrite mode will replace all existing user data with the data from this file. Are you sure you want to proceed?")) {
+          return;
+        }
+      }
+
+      if (importUserMode === 'overwrite') {
+        setUsers(normalizedRows);
+      } else {
+        setUsers((prev) => [...prev, ...normalizedRows]);
+      }
+      addUserHistoryEntry("IMPORT", "Bulk Import", `Imported ${normalizedRows.length} users from ${importUserFile.name} (Mode: ${importUserMode})`);
       toast.success(`Imported ${normalizedRows.length} users`);
       setIsImportUserModalOpen(false);
       setImportUserFile(null);
+      setImportUserMode('extend');
       setImportUserError(null);
     } catch {
       setImportUserError("Failed to import users file.");
@@ -1703,6 +1723,13 @@ export default function Home() {
       return;
     }
 
+    if (importScheduleMode === "overwrite") {
+      const confirmMsg = "Are you sure you want to OVERWRITE the existing schedule? This will delete all current rows for this loan facility.";
+      if (!window.confirm(confirmMsg)) {
+        return;
+      }
+    }
+
     try {
       ensureEditor();
       const poAccessToken = localStorage.getItem("poAccessToken");
@@ -2167,6 +2194,7 @@ export default function Home() {
       toast.error("Access denied: editor role is required for this action");
       return;
     }
+    setErrorMessage(null);
     setIsCreatingLoan(true);
    
      setLoanForm({
@@ -2708,7 +2736,9 @@ export default function Home() {
         );
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Loan save failed')
+      const message = error instanceof Error ? error.message : 'Loan save failed';
+      setErrorMessage(message);
+      toast.error(message);
     }
 
     
@@ -3049,82 +3079,133 @@ export default function Home() {
                 </div>
               </div>
 
-              {isImportCompanyModalOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                  <div className={`rounded-lg p-6 w-full max-w-lg ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
-                    <h3 className="text-xl font-semibold mb-4">Import Companies</h3>
+            {isImportCompanyModalOpen && createPortal(
+              <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+                <div className="flex min-h-full items-center justify-center p-4">
+                <div
+                  className={`rounded-lg p-6 w-full max-w-lg ${
+                    isDarkMode ? "bg-gray-800" : "bg-white"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-semibold">Import Companies</h3>
+                    <button
+                      type="button"
+                      onClick={() => setIsImportCompanyModalOpen(false)}
+                      className="text-gray-400 hover:text-gray-500 rounded-lg p-2 transition-colors duration-200"
+                      title="Close"
+                    >
+                      <XMarkIcon className="h-6 w-6" />
+                    </button>
+                  </div>
 
-                    <div className="space-y-4">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={downloadCompanyImportTemplate}
-                          className={companyHeaderButtonClass}
-                        >
-                          Download Template
-                        </button>
-                        <button
-                          type="button"
-                          onClick={triggerCompanyImportFile}
-                          className={companyHeaderButtonClass}
-                        >
-                          File Import
-                        </button>
-                        <input
-                          ref={companyImportInputRef}
-                          type="file"
-                          accept=".xlsx,.xls,.csv"
-                          onChange={handleCompanyImportFileChange}
-                          className="hidden"
-                        />
-                      </div>
-
-                      <div
-                        className={`text-sm ${
-                          isDarkMode ? "text-gray-300" : "text-gray-700"
-                        }`}
-                      >
-                        {importCompanyFile
-                          ? `File (.xlsx, .xls, .csv): ${importCompanyFile.name}`
-                          : "File (.xlsx, .xls, .csv)"}
-                      </div>
-
-                      {importCompanyError && (
-                        <div className="text-sm text-red-500">{importCompanyError}</div>
-                      )}
-                    </div>
-
-                    <div className="flex gap-3 mt-6">
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        onClick={() => {
-                          setIsImportCompanyModalOpen(false);
-                          setImportCompanyError(null);
-                          setImportCompanyFile(null);
-                        }}
-                        className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
-                          isDarkMode
-                            ? "bg-gray-700 hover:bg-gray-600 text-white"
-                            : "bg-gray-200 hover:bg-gray-300 text-black"
-                        }`}
+                        onClick={downloadCompanyImportTemplate}
+                        className={companyHeaderButtonClass}
                       >
-                        Cancel
+                        Download Template
                       </button>
                       <button
                         type="button"
-                        onClick={handleCompanyImport}
-                        className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
-                          isDarkMode
-                            ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-                            : "bg-indigo-600 hover:bg-indigo-700 text-white"
-                        }`}
+                        onClick={triggerCompanyImportFile}
+                        className={companyHeaderButtonClass}
                       >
-                        Import
+                        File Import
                       </button>
+                      <input
+                        ref={companyImportInputRef}
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        onChange={handleCompanyImportFileChange}
+                        className="hidden"
+                      />
                     </div>
+
+                    <div
+                      className={`text-sm ${
+                        isDarkMode ? "text-gray-300" : "text-gray-700"
+                      }`}
+                    >
+                      {importCompanyFile
+                        ? `File (.xlsx, .xls, .csv): ${importCompanyFile.name}`
+                        : "File (.xlsx, .xls, .csv)"}
+                    </div>
+
+                    {importCompanyFile && (
+                      <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <label className={`text-sm font-medium ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                          Import Mode
+                        </label>
+                        <div className="flex flex-col gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer group">
+                            <input
+                              type="radio"
+                              name="importCompanyMode"
+                              value="extend"
+                              checked={importCompanyMode === 'extend'}
+                              onChange={() => setImportCompanyMode('extend')}
+                              className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                            />
+                            <span className={`text-sm ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                              Extend Existing Companies
+                              <span className="block text-xs text-gray-500 dark:text-gray-400">Add new items without affecting existing ones</span>
+                            </span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer group">
+                            <input
+                              type="radio"
+                              name="importCompanyMode"
+                              value="overwrite"
+                              checked={importCompanyMode === 'overwrite'}
+                              onChange={() => setImportCompanyMode('overwrite')}
+                              className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                            />
+                            <span className={`text-sm ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                              Overwrite Existing Companies
+                              <span className="block text-xs text-red-500 dark:text-red-400">Warning: All existing data will be replaced</span>
+                            </span>
+                          </label>
+                        </div>
+                      </div>
+                    )}
+
+                    {importCompanyError && (
+                      <div className="text-sm text-red-500 font-medium">
+                        {importCompanyError}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-3 mt-6">
+                    <button
+                      onClick={() => setIsImportCompanyModalOpen(false)}
+                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+                        isDarkMode
+                          ? "bg-gray-700 hover:bg-gray-600 text-white"
+                          : "bg-gray-200 hover:bg-gray-300 text-black"
+                      }`}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleCompanyImport}
+                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+                        isDarkMode
+                          ? "bg-indigo-600 hover:bg-indigo-700 text-white"
+                          : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                      }`}
+                    >
+                      Import
+                    </button>
+                  </div>
                   </div>
                 </div>
-              )}
+              </div>,
+              document.body
+            )}
 
               {/* Table */}
               <div className={`overflow-x-auto rounded-xl border shadow-sm ${isDarkMode ? "border-gray-700/80 bg-gray-900/30" : "border-gray-200 bg-white"}`}>
@@ -3137,13 +3218,6 @@ export default function Home() {
                     } border-b`}
                   >
                     <tr>
-                      <th
-                        className={`px-6 py-3 text-left text-sm font-semibold ${
-                          isDarkMode ? "text-gray-100" : "text-gray-900"
-                        }`}
-                      >
-                        ID
-                      </th>
                       <th
                         className={`px-6 py-3 text-left text-sm font-semibold ${
                           isDarkMode ? "text-gray-100" : "text-gray-900"
@@ -3192,7 +3266,7 @@ export default function Home() {
                     {companies.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={7}
+                          colSpan={6}
                           className={`px-6 py-8 text-center text-sm ${
                             isDarkMode ? "text-gray-400" : "text-gray-600"
                           }`}
@@ -3210,13 +3284,6 @@ export default function Home() {
                               : "border-gray-200 hover:bg-gray-100"
                           } transition`}
                         >
-                          <td
-                            className={`px-6 py-4 text-sm font-mono ${
-                              isDarkMode ? "text-gray-300" : "text-gray-700"
-                            }`}
-                          >
-                            {company.id}
-                          </td>
                           <td
                             className={`px-6 py-4 text-sm ${
                               isDarkMode ? "text-gray-100" : "text-gray-900"
@@ -3336,14 +3403,14 @@ export default function Home() {
 
             <div className={`rounded-lg p-8 mt-8 ${isDarkMode ? "bg-gray-800" : "bg-gray-50"}`}>
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-semibold">Currency conversion</h2>
+                <h2 className="text-2xl font-semibold">Currency Conversion</h2>
                 <button
                   type="button"
                   onClick={() => handleOpenCurrencyExchangeModal()}
                   className={companyHeaderButtonClass}
                 >
                   <PlusIcon className="w-4 h-4" />
-                  Add rate
+                  Add Rate
                 </button>
               </div>
 
@@ -3371,7 +3438,7 @@ export default function Home() {
                           isDarkMode ? "text-gray-100" : "text-gray-900"
                         }`}
                       >
-                        Exchange rate
+                        Exchange Rate
                       </th>
                       <th
                         className={`px-6 py-3 text-left text-sm font-semibold ${
@@ -3391,7 +3458,7 @@ export default function Home() {
                             isDarkMode ? "text-gray-400" : "text-gray-600"
                           }`}
                         >
-                          No currency exchanges found. Click &quot;Add rate&quot; to create one.
+                          No currency exchanges found. Click &quot;Add Rate&quot; to create one.
                         </td>
                       </tr>
                     ) : (
@@ -3516,14 +3583,29 @@ export default function Home() {
               )}
             </div>
 
-            {showCurrencyExchangeModal && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div
-                  className={`rounded-lg p-6 w-full max-w-md ${isDarkMode ? "bg-gray-800" : "bg-white"}`}
-                >
-                  <h3 className="text-xl font-semibold mb-4">
-                    {editingCurrencyExchangeId ? "Edit currency exchange" : "Add currency exchange"}
-                  </h3>
+            {showCurrencyExchangeModal && createPortal(
+              <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+                <div className="flex min-h-full items-center justify-center p-4">
+                  <div
+                    className={`rounded-lg p-6 w-full max-w-md ${isDarkMode ? "bg-gray-800" : "bg-white"}`}
+                  >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-semibold">
+                      {editingCurrencyExchangeId ? "Edit Currency Exchange" : "Add Currency Exchange"}
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCurrencyExchangeModal(false);
+                        setEditingCurrencyExchangeId(null);
+                        setCurrencyExchangeForm({ currency: "", exchangeRate: "" });
+                      }}
+                      className="text-gray-400 hover:text-gray-500 rounded-lg p-2 transition-colors duration-200"
+                      title="Close"
+                    >
+                      <XMarkIcon className="h-6 w-6" />
+                    </button>
+                  </div>
 
                   <div className="space-y-4">
                     <div>
@@ -3558,7 +3640,7 @@ export default function Home() {
                           isDarkMode ? "text-gray-300" : "text-gray-700"
                         }`}
                       >
-                        Exchange rate <span className="text-red-500">*</span>
+                        Exchange Rate <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="number"
@@ -3600,26 +3682,46 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={() => void handleSaveCurrencyExchange()}
-                      className="flex-1 px-4 py-2 rounded-lg font-medium transition bg-indigo-600 hover:bg-indigo-700 text-white"
+                      disabled={!currencyExchangeForm.currency || !currencyExchangeForm.exchangeRate}
+                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+                        !currencyExchangeForm.currency || !currencyExchangeForm.exchangeRate
+                          ? isDarkMode
+                            ? "bg-gray-700 text-gray-500 cursor-not-allowed"
+                            : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                          : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                      }`}
                     >
                       Save
                     </button>
                   </div>
+                  </div>
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
 
             {/* Add/Edit Modal */}
-            {showModal && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div
-                  className={`rounded-lg p-6 w-full max-w-2xl ${
-                    isDarkMode ? "bg-gray-800" : "bg-white"
-                  }`}
-                >
-                  <h3 className="text-xl font-semibold mb-4">
-                    {editingId ? "Edit Company" : "Add Company"}
-                  </h3>
+            {showModal && createPortal(
+              <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+                <div className="flex min-h-full items-center justify-center p-4">
+                  <div
+                    className={`rounded-lg p-6 w-full max-w-2xl ${
+                      isDarkMode ? "bg-gray-800" : "bg-white"
+                    }`}
+                  >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-semibold">
+                      {editingId ? "Edit Company" : "Add Company"}
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowModal(false)}
+                      className="text-gray-400 hover:text-gray-500 rounded-lg p-2 transition-colors duration-200"
+                      title="Close"
+                    >
+                      <XMarkIcon className="h-6 w-6" />
+                    </button>
+                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -3816,144 +3918,149 @@ export default function Home() {
                       {editingId ? "Update" : "Add"}
                     </button>
                   </div>
+                  </div>
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
 
-            {showCompanyHistoryModal && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div
-                  className={`rounded-lg p-6 w-full max-w-4xl h-[80vh] flex flex-col ${
-                    isDarkMode ? "bg-gray-800" : "bg-white"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-semibold">Company Change History</h3>
-                    <button
-                      type="button"
-                      onClick={() => setShowCompanyHistoryModal(false)}
-                      className={`px-3 py-1 rounded-md text-sm ${
-                        isDarkMode
-                          ? "bg-gray-700 hover:bg-gray-600 text-white"
-                          : "bg-gray-200 hover:bg-gray-300 text-black"
-                      }`}
-                    >
-                      Close
-                    </button>
-                  </div>
-
+            {showCompanyHistoryModal && createPortal(
+              <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+                <div className="flex min-h-full items-center justify-center p-4">
                   <div
-                    className={`rounded-lg border overflow-y-auto flex-1 p-3 space-y-3 ${
-                      isDarkMode ? "border-gray-700" : "border-gray-200"
+                    className={`rounded-lg p-6 w-full max-w-4xl h-[80vh] flex flex-col ${
+                      isDarkMode ? "bg-gray-800" : "bg-white"
                     }`}
                   >
-                    {isCompanyHistoryLoading ? (
-                      <p
-                        className={`px-2 py-8 text-center text-sm ${
-                          isDarkMode ? "text-gray-400" : "text-gray-600"
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-xl font-semibold">Company Change History</h3>
+                      <button
+                        type="button"
+                        onClick={() => setShowCompanyHistoryModal(false)}
+                        className={`px-3 py-1 rounded-md text-sm ${
+                          isDarkMode
+                            ? "bg-gray-700 hover:bg-gray-600 text-white"
+                            : "bg-gray-200 hover:bg-gray-300 text-black"
                         }`}
                       >
-                        Loading history...
-                      </p>
-                    ) : companyHistory.length === 0 ? (
-                      <p
-                        className={`px-2 py-8 text-center text-sm ${
-                          isDarkMode ? "text-gray-400" : "text-gray-600"
-                        }`}
-                      >
-                        No history yet.
-                      </p>
-                    ) : (
-                      companyHistory.map((entry) => {
-                        const rawAction = entry.action;
-                        const badgeClass =
-                          rawAction === "ADD" || rawAction === "IMPORT"
-                            ? isDarkMode
-                              ? "bg-emerald-900/45 text-emerald-200 border border-emerald-700"
-                              : "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                            : rawAction === "DELETE"
+                        Close
+                      </button>
+                    </div>
+
+                    <div
+                      className={`rounded-lg border overflow-y-auto flex-1 p-3 space-y-3 ${
+                        isDarkMode ? "border-gray-700" : "border-gray-200"
+                      }`}
+                    >
+                      {isCompanyHistoryLoading ? (
+                        <p
+                          className={`px-2 py-8 text-center text-sm ${
+                            isDarkMode ? "text-gray-400" : "text-gray-600"
+                          }`}
+                        >
+                          Loading history...
+                        </p>
+                      ) : companyHistory.length === 0 ? (
+                        <p
+                          className={`px-2 py-8 text-center text-sm ${
+                            isDarkMode ? "text-gray-400" : "text-gray-600"
+                          }`}
+                        >
+                          No history yet.
+                        </p>
+                      ) : (
+                        companyHistory.map((entry) => {
+                          const rawAction = entry.action;
+                          const badgeClass =
+                            rawAction === "ADD" || rawAction === "IMPORT"
                               ? isDarkMode
-                                ? "bg-rose-900/45 text-rose-200 border border-rose-700"
-                                : "bg-rose-50 text-rose-800 border border-rose-200"
-                              : isDarkMode
-                                ? "bg-sky-900/45 text-sky-200 border border-sky-700"
-                                : "bg-sky-50 text-sky-800 border border-sky-200";
+                                ? "bg-emerald-900/45 text-emerald-200 border border-emerald-700"
+                                : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                              : rawAction === "DELETE"
+                                ? isDarkMode
+                                  ? "bg-rose-900/45 text-rose-200 border border-rose-700"
+                                  : "bg-rose-50 text-rose-800 border border-rose-200"
+                                : isDarkMode
+                                  ? "bg-sky-900/45 text-sky-200 border border-sky-700"
+                                  : "bg-sky-50 text-sky-800 border border-sky-200";
 
-                        const parsedTime = new Date(entry.timestamp);
-                        const timeLabel = Number.isNaN(parsedTime.getTime())
-                          ? entry.timestamp || "—"
-                          : parsedTime.toLocaleString("en-GB", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              second: "2-digit",
-                              hour12: false,
-                            });
+                          const parsedTime = new Date(entry.timestamp);
+                          const timeLabel = Number.isNaN(parsedTime.getTime())
+                            ? entry.timestamp || "—"
+                            : parsedTime.toLocaleString("en-GB", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                second: "2-digit",
+                                hour12: false,
+                              });
 
-                        return (
-                          <article
-                            key={entry.id}
-                            className={`rounded-lg border p-4 text-sm ${
-                              isDarkMode ? "border-gray-600 bg-gray-800/50" : "border-gray-200 bg-white"
-                            }`}
-                          >
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                              <span className={isDarkMode ? "text-gray-300" : "text-gray-700"}>
-                                {timeLabel}
-                              </span>
-                              <span className={isDarkMode ? "text-gray-500" : "text-gray-400"}>
-                                ·
-                              </span>
-                              <span className={isDarkMode ? "text-gray-200" : "text-gray-800"}>
-                                {entry.createdBy || "System"}
-                              </span>
-                              <span
-                                className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${badgeClass}`}
-                              >
-                                <ClockIcon className="w-3 h-3 shrink-0 opacity-90" />
-                                {adminHistoryActionBadgeLabel(entry.action)}
-                              </span>
-                              {entry.entityType ? (
-                                <span
-                                  className={`text-[11px] font-medium rounded px-1.5 py-0.5 ${
-                                    isDarkMode ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-600"
-                                  }`}
-                                >
-                                  {entry.entityType}
-                                  {entry.entityId ? ` #${entry.entityId}` : ""}
-                                </span>
-                              ) : entry.entityId ? (
-                                <span
-                                  className={`text-[11px] font-medium rounded px-1.5 py-0.5 ${
-                                    isDarkMode ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-600"
-                                  }`}
-                                >
-                                  company #{entry.entityId}
-                                </span>
-                              ) : null}
-                            </div>
-                            <p
-                              className={`mt-1 text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
-                            >
-                              {entry.companyName}
-                            </p>
-                            <p
-                              className={`mt-2 font-medium ${
-                                isDarkMode ? "text-gray-100" : "text-gray-900"
+                          return (
+                            <article
+                              key={entry.id}
+                              className={`rounded-lg border p-4 text-sm ${
+                                isDarkMode ? "border-gray-600 bg-gray-800/50" : "border-gray-200 bg-white"
                               }`}
                             >
-                              {entry.details || "—"}
-                            </p>
-                            <CompanyHistoryAuditBlock entry={entry} isDarkMode={isDarkMode} />
-                          </article>
-                        );
-                      })
-                    )}
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <span className={isDarkMode ? "text-gray-300" : "text-gray-700"}>
+                                  {timeLabel}
+                                </span>
+                                <span className={isDarkMode ? "text-gray-500" : "text-gray-400"}>
+                                  ·
+                                </span>
+                                <span className={isDarkMode ? "text-gray-200" : "text-gray-800"}>
+                                  {entry.createdBy || "System"}
+                                </span>
+                                <span
+                                  className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${badgeClass}`}
+                                >
+                                  <ClockIcon className="w-3 h-3 shrink-0 opacity-90" />
+                                  {adminHistoryActionBadgeLabel(entry.action)}
+                                </span>
+                                {entry.entityType ? (
+                                  <span
+                                    className={`text-[11px] font-medium rounded px-1.5 py-0.5 ${
+                                      isDarkMode ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-600"
+                                    }`}
+                                  >
+                                    {entry.entityType}
+                                    {entry.entityId ? ` #${entry.entityId}` : ""}
+                                  </span>
+                                ) : entry.entityId ? (
+                                  <span
+                                    className={`text-[11px] font-medium rounded px-1.5 py-0.5 ${
+                                      isDarkMode ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-600"
+                                    }`}
+                                  >
+                                    company #{entry.entityId}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <p
+                                className={`mt-1 text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                              >
+                                {entry.companyName}
+                              </p>
+                              <p
+                                className={`mt-2 font-medium ${
+                                  isDarkMode ? "text-gray-100" : "text-gray-900"
+                                }`}
+                              >
+                                {entry.details || "—"}
+                              </p>
+                              <CompanyHistoryAuditBlock entry={entry} isDarkMode={isDarkMode} />
+                            </article>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
 
             <div className={`rounded-lg p-8 mt-8 ${isDarkMode ? "bg-gray-800" : "bg-gray-50"}`}>
@@ -3983,13 +4090,6 @@ export default function Home() {
                           isDarkMode ? "text-gray-100" : "text-gray-900"
                         }`}
                       >
-                        ID
-                      </th>
-                      <th
-                        className={`px-6 py-3 text-left text-sm font-semibold ${
-                          isDarkMode ? "text-gray-100" : "text-gray-900"
-                        }`}
-                      >
                         Name
                       </th>
                       <th
@@ -4012,7 +4112,7 @@ export default function Home() {
                     {countries.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={4}
+                          colSpan={3}
                           className={`px-6 py-8 text-center text-sm ${
                             isDarkMode ? "text-gray-400" : "text-gray-600"
                           }`}
@@ -4030,13 +4130,6 @@ export default function Home() {
                               : "border-gray-200 hover:bg-gray-100"
                           } transition`}
                         >
-                          <td
-                            className={`px-6 py-4 text-sm font-mono ${
-                              isDarkMode ? "text-gray-300" : "text-gray-700"
-                            }`}
-                          >
-                            {country.id}
-                          </td>
                           <td
                             className={`px-6 py-4 text-sm ${
                               isDarkMode ? "text-gray-100" : "text-gray-900"
@@ -4133,90 +4226,103 @@ export default function Home() {
               )}
             </div>
 
-            {showCountryModal && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div
-                  className={`rounded-lg p-6 w-full max-w-md ${
-                    isDarkMode ? "bg-gray-800" : "bg-white"
-                  }`}
-                >
-                  <h3 className="text-xl font-semibold mb-4">
-                    {editingCountryId !== null ? "Edit Country" : "Add Country"}
-                  </h3>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label
-                        className={`block text-sm font-medium mb-1 ${
-                          isDarkMode ? "text-gray-300" : "text-gray-700"
-                        }`}
+            {showCountryModal && createPortal(
+              <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+                <div className="flex min-h-full items-center justify-center p-4">
+                  <div
+                    className={`rounded-lg p-6 w-full max-w-md ${
+                      isDarkMode ? "bg-gray-800" : "bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-xl font-semibold">
+                        {editingCountryId !== null ? "Edit Country" : "Add Country"}
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => setShowCountryModal(false)}
+                        className="text-gray-400 hover:text-gray-500 rounded-lg p-2 transition-colors duration-200"
+                        title="Close"
                       >
-                        Country Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={countryFormData.name}
-                        onChange={(e) => setCountryFormData({ ...countryFormData, name: e.target.value })}
-                        placeholder="Enter country name"
-                        className={`w-full px-3 py-2 border rounded-lg ${
-                          isDarkMode
-                            ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
-                            : "bg-white border-gray-300 text-black placeholder-gray-500"
-                        }`}
-                      />
+                        <XMarkIcon className="h-6 w-6" />
+                      </button>
                     </div>
 
-                    <div>
-                      <label
-                        className={`block text-sm font-medium mb-1 ${
-                          isDarkMode ? "text-gray-300" : "text-gray-700"
+                    <div className="space-y-4">
+                      <div>
+                        <label
+                          className={`block text-sm font-medium mb-1 ${
+                            isDarkMode ? "text-gray-300" : "text-gray-700"
+                          }`}
+                        >
+                          Country Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={countryFormData.name}
+                          onChange={(e) => setCountryFormData({ ...countryFormData, name: e.target.value })}
+                          placeholder="Enter country name"
+                          className={`w-full px-3 py-2 border rounded-lg ${
+                            isDarkMode
+                              ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                              : "bg-white border-gray-300 text-black placeholder-gray-500"
+                          }`}
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          className={`block text-sm font-medium mb-1 ${
+                            isDarkMode ? "text-gray-300" : "text-gray-700"
+                          }`}
+                        >
+                          Country Code <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={countryFormData.countryCode}
+                          onChange={(e) => setCountryFormData({ ...countryFormData, countryCode: e.target.value })}
+                          placeholder="Enter country code"
+                          className={`w-full px-3 py-2 border rounded-lg ${
+                            isDarkMode
+                              ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                              : "bg-white border-gray-300 text-black placeholder-gray-500"
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 mt-6">
+                      <button
+                        onClick={() => setShowCountryModal(false)}
+                        className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+                          isDarkMode
+                            ? "bg-gray-700 hover:bg-gray-600 text-white"
+                            : "bg-gray-200 hover:bg-gray-300 text-black"
                         }`}
                       >
-                        Country Code <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={countryFormData.countryCode}
-                        onChange={(e) => setCountryFormData({ ...countryFormData, countryCode: e.target.value })}
-                        placeholder="Enter country code"
-                        className={`w-full px-3 py-2 border rounded-lg ${
-                          isDarkMode
-                            ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
-                            : "bg-white border-gray-300 text-black placeholder-gray-500"
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveCountry}
+                        disabled={isCountryActionButtonDisabled}
+                        className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+                          isCountryActionButtonDisabled
+                            ? isDarkMode
+                              ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                              : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            : isDarkMode
+                            ? "bg-indigo-600 hover:bg-indigo-700 text-white"
+                            : "bg-indigo-600 hover:bg-indigo-700 text-white"
                         }`}
-                      />
+                      >
+                        {editingCountryId !== null ? "Update" : "Add"}
+                      </button>
                     </div>
-                  </div>
-
-                  <div className="flex gap-3 mt-6">
-                    <button
-                      onClick={() => setShowCountryModal(false)}
-                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
-                        isDarkMode
-                          ? "bg-gray-700 hover:bg-gray-600 text-white"
-                          : "bg-gray-200 hover:bg-gray-300 text-black"
-                      }`}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSaveCountry}
-                      disabled={isCountryActionButtonDisabled}
-                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
-                        isCountryActionButtonDisabled
-                          ? isDarkMode
-                            ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                          : isDarkMode
-                          ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-                          : "bg-indigo-600 hover:bg-indigo-700 text-white"
-                      }`}
-                    >
-                      {editingCountryId !== null ? "Update" : "Add"}
-                    </button>
                   </div>
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
 
             {/* Users Section */}
@@ -4265,74 +4371,130 @@ export default function Home() {
                 </div>
               </div>
 
-              {isImportUserModalOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                  <div className={`rounded-lg p-6 w-full max-w-lg ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
-                    <h3 className="text-xl font-semibold mb-4">Import Users</h3>
-
-                    <div className="space-y-4">
-                      <div className="flex flex-wrap gap-2">
+              {isImportUserModalOpen && createPortal(
+                <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+                  <div className="flex min-h-full items-center justify-center p-4">
+                    <div className={`rounded-lg p-6 w-full max-w-lg ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-xl font-semibold">Import Users</h3>
                         <button
                           type="button"
-                          onClick={downloadUserTemplate}
-                          className={userHeaderButtonClass}
+                          onClick={() => {
+                            setIsImportUserModalOpen(false);
+                            setImportUserError(null);
+                            setImportUserFile(null);
+                            setImportUserMode('extend');
+                          }}
+                          className="text-gray-400 hover:text-gray-500 rounded-lg p-2 transition-colors duration-200"
+                          title="Close"
                         >
-                          Download Template
-                        </button>
-                        <button
-                          type="button"
-                          onClick={triggerUserImport}
-                          className={userHeaderButtonClass}
-                        >
-                          File Import
+                          <XMarkIcon className="h-6 w-6" />
                         </button>
                       </div>
 
-                      <div
-                        className={`text-sm ${
-                          isDarkMode ? "text-gray-300" : "text-gray-700"
-                        }`}
-                      >
-                        {importUserFile
-                          ? `File (.xlsx, .xls, .csv): ${importUserFile.name}`
-                          : "File (.xlsx, .xls, .csv)"}
+                      <div className="space-y-4">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={downloadUserTemplate}
+                            className={userHeaderButtonClass}
+                          >
+                            Download Template
+                          </button>
+                          <button
+                            type="button"
+                            onClick={triggerUserImport}
+                            className={userHeaderButtonClass}
+                          >
+                            File Import
+                          </button>
+                        </div>
+
+                        <div
+                          className={`text-sm ${
+                            isDarkMode ? "text-gray-300" : "text-gray-700"
+                          }`}
+                        >
+                          {importUserFile
+                            ? `File (.xlsx, .xls, .csv): ${importUserFile.name}`
+                            : "File (.xlsx, .xls, .csv)"}
+                        </div>
+
+                        {importUserFile && (
+                          <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                            <label className={`text-sm font-medium ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                              Import Mode
+                            </label>
+                            <div className="flex flex-col gap-2">
+                              <label className="flex items-center gap-2 cursor-pointer group">
+                                <input
+                                  type="radio"
+                                  name="importUserMode"
+                                  value="extend"
+                                  checked={importUserMode === 'extend'}
+                                  onChange={() => setImportUserMode('extend')}
+                                  className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                                />
+                                <span className={`text-sm ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                                  Extend Existing Users
+                                  <span className="block text-xs text-gray-500 dark:text-gray-400">Add new users without affecting existing ones</span>
+                                </span>
+                              </label>
+                              <label className="flex items-center gap-2 cursor-pointer group">
+                                <input
+                                  type="radio"
+                                  name="importUserMode"
+                                  value="overwrite"
+                                  checked={importUserMode === 'overwrite'}
+                                  onChange={() => setImportUserMode('overwrite')}
+                                  className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                                />
+                                <span className={`text-sm ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                                  Overwrite Existing Users
+                                  <span className="block text-xs text-red-500 dark:text-red-400">Warning: Existing user data will be replaced</span>
+                                </span>
+                              </label>
+                            </div>
+                          </div>
+                        )}
+
+                        {importUserError && (
+                          <div className="text-sm text-red-500 font-medium">{importUserError}</div>
+                        )}
                       </div>
-
-                      {importUserError && (
-                        <div className="text-sm text-red-500">{importUserError}</div>
-                      )}
-                    </div>
-
-                    <div className="flex gap-3 mt-6">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsImportUserModalOpen(false);
-                          setImportUserError(null);
-                          setImportUserFile(null);
-                        }}
-                        className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
-                          isDarkMode
-                            ? "bg-gray-700 hover:bg-gray-600 text-white"
-                            : "bg-gray-200 hover:bg-gray-300 text-black"
-                        }`}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleUserImport}
-                        className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
-                          isDarkMode
-                            ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-                            : "bg-indigo-600 hover:bg-indigo-700 text-white"
-                        }`}
-                      >
-                        Import
-                      </button>
+                      <div className="flex gap-3 mt-6">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsImportUserModalOpen(false);
+                            setImportUserError(null);
+                            setImportUserFile(null);
+                            setImportUserMode('extend');
+                          }}
+                          className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+                            isDarkMode
+                              ? "bg-gray-700 hover:bg-gray-600 text-white"
+                              : "bg-gray-200 hover:bg-gray-300 text-black"
+                          }`}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleUserImport}
+                          className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+                            isDarkMode
+                              ? "bg-indigo-600 hover:bg-indigo-700 text-white"
+                              : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                          }`}
+                        >
+                          Import
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </div>,
+                document.body
               )}
 
               {/* Users Table */}
@@ -4529,298 +4691,322 @@ export default function Home() {
               )}
             </div>
 
-            {showUserHistoryModal && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div
-                  className={`rounded-lg p-6 w-full max-w-4xl h-[80vh] flex flex-col ${
-                    isDarkMode ? "bg-gray-800" : "bg-white"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-semibold">User Change History</h3>
-                    <button
-                      type="button"
-                      onClick={() => setShowUserHistoryModal(false)}
-                      className={`px-3 py-1 rounded-md text-sm ${
-                        isDarkMode
-                          ? "bg-gray-700 hover:bg-gray-600 text-white"
-                          : "bg-gray-200 hover:bg-gray-300 text-black"
-                      }`}
-                    >
-                      Close
-                    </button>
-                  </div>
-
+            {showUserHistoryModal && createPortal(
+              <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+                <div className="flex min-h-full items-center justify-center p-4">
                   <div
-                    className={`rounded-lg border overflow-y-auto flex-1 p-3 space-y-3 ${
-                      isDarkMode ? "border-gray-700" : "border-gray-200"
+                    className={`rounded-lg p-6 w-full max-w-4xl h-[80vh] flex flex-col ${
+                      isDarkMode ? "bg-gray-800" : "bg-white"
                     }`}
                   >
-                    {isUserHistoryLoading ? (
-                      <p
-                        className={`px-2 py-8 text-center text-sm ${
-                          isDarkMode ? "text-gray-400" : "text-gray-600"
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-xl font-semibold">User Change History</h3>
+                      <button
+                        type="button"
+                        onClick={() => setShowUserHistoryModal(false)}
+                        className={`px-3 py-1 rounded-md text-sm ${
+                          isDarkMode
+                            ? "bg-gray-700 hover:bg-gray-600 text-white"
+                            : "bg-gray-200 hover:bg-gray-300 text-black"
                         }`}
                       >
-                        Loading history...
-                      </p>
-                    ) : userHistory.length === 0 ? (
-                      <p
-                        className={`px-2 py-8 text-center text-sm ${
-                          isDarkMode ? "text-gray-400" : "text-gray-600"
-                        }`}
-                      >
-                        No history yet.
-                      </p>
-                    ) : (
-                      userHistory.map((entry) => {
-                        const rawAction = entry.action;
-                        const badgeClass =
-                          rawAction === "ADD" || rawAction === "IMPORT"
-                            ? isDarkMode
-                              ? "bg-emerald-900/45 text-emerald-200 border border-emerald-700"
-                              : "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                            : rawAction === "DELETE"
+                        Close
+                      </button>
+                    </div>
+
+                    <div
+                      className={`rounded-lg border overflow-y-auto flex-1 p-3 space-y-3 ${
+                        isDarkMode ? "border-gray-700" : "border-gray-200"
+                      }`}
+                    >
+                      {isUserHistoryLoading ? (
+                        <p
+                          className={`px-2 py-8 text-center text-sm ${
+                            isDarkMode ? "text-gray-400" : "text-gray-600"
+                          }`}
+                        >
+                          Loading history...
+                        </p>
+                      ) : userHistory.length === 0 ? (
+                        <p
+                          className={`px-2 py-8 text-center text-sm ${
+                            isDarkMode ? "text-gray-400" : "text-gray-600"
+                          }`}
+                        >
+                          No history yet.
+                        </p>
+                      ) : (
+                        userHistory.map((entry) => {
+                          const rawAction = entry.action;
+                          const badgeClass =
+                            rawAction === "ADD" || rawAction === "IMPORT"
                               ? isDarkMode
-                                ? "bg-rose-900/45 text-rose-200 border border-rose-700"
-                                : "bg-rose-50 text-rose-800 border border-rose-200"
-                              : isDarkMode
-                                ? "bg-sky-900/45 text-sky-200 border border-sky-700"
-                                : "bg-sky-50 text-sky-800 border border-sky-200";
+                                ? "bg-emerald-900/45 text-emerald-200 border border-emerald-700"
+                                : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                              : rawAction === "DELETE"
+                                ? isDarkMode
+                                  ? "bg-rose-900/45 text-rose-200 border border-rose-700"
+                                  : "bg-rose-50 text-rose-800 border border-rose-200"
+                                : isDarkMode
+                                  ? "bg-sky-900/45 text-sky-200 border border-sky-700"
+                                  : "bg-sky-50 text-sky-800 border border-sky-200";
 
-                        const parsedTime = new Date(entry.timestamp);
-                        const timeLabel = Number.isNaN(parsedTime.getTime())
-                          ? entry.timestamp || "—"
-                          : parsedTime.toLocaleString("en-GB", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              second: "2-digit",
-                              hour12: false,
-                            });
+                          const parsedTime = new Date(entry.timestamp);
+                          const timeLabel = Number.isNaN(parsedTime.getTime())
+                            ? entry.timestamp || "—"
+                            : parsedTime.toLocaleString("en-GB", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                second: "2-digit",
+                                hour12: false,
+                              });
 
-                        return (
-                          <article
-                            key={entry.id}
-                            className={`rounded-lg border p-4 text-sm ${
-                              isDarkMode ? "border-gray-600 bg-gray-800/50" : "border-gray-200 bg-white"
-                            }`}
-                          >
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                              <span className={isDarkMode ? "text-gray-300" : "text-gray-700"}>
-                                {timeLabel}
-                              </span>
-                              <span className={isDarkMode ? "text-gray-500" : "text-gray-400"}>
-                                ·
-                              </span>
-                              <span className={isDarkMode ? "text-gray-200" : "text-gray-800"}>
-                                {entry.performedBy || "System"}
-                              </span>
-                              <span
-                                className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${badgeClass}`}
-                              >
-                                <ClockIcon className="w-3 h-3 shrink-0 opacity-90" />
-                                {adminHistoryActionBadgeLabel(entry.action)}
-                              </span>
-                              {entry.entityType ? (
-                                <span
-                                  className={`text-[11px] font-medium rounded px-1.5 py-0.5 ${
-                                    isDarkMode ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-600"
-                                  }`}
-                                >
-                                  {entry.entityType}
-                                  {entry.entityId ? ` #${entry.entityId}` : ""}
-                                </span>
-                              ) : entry.entityId ? (
-                                <span
-                                  className={`text-[11px] font-medium rounded px-1.5 py-0.5 ${
-                                    isDarkMode ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-600"
-                                  }`}
-                                >
-                                  user #{entry.entityId}
-                                </span>
-                              ) : null}
-                            </div>
-                            <p
-                              className={`mt-1 text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
-                            >
-                              {entry.userName}
-                            </p>
-                            <p
-                              className={`mt-2 font-medium ${
-                                isDarkMode ? "text-gray-100" : "text-gray-900"
+                          return (
+                            <article
+                              key={entry.id}
+                              className={`rounded-lg border p-4 text-sm ${
+                                isDarkMode ? "border-gray-600 bg-gray-800/50" : "border-gray-200 bg-white"
                               }`}
                             >
-                              {entry.details || "—"}
-                            </p>
-                            <UserHistoryAuditBlock entry={entry} isDarkMode={isDarkMode} />
-                          </article>
-                        );
-                      })
-                    )}
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <span className={isDarkMode ? "text-gray-300" : "text-gray-700"}>
+                                  {timeLabel}
+                                </span>
+                                <span className={isDarkMode ? "text-gray-500" : "text-gray-400"}>
+                                  ·
+                                </span>
+                                <span className={isDarkMode ? "text-gray-200" : "text-gray-800"}>
+                                  {entry.performedBy || "System"}
+                                </span>
+                                <span
+                                  className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${badgeClass}`}
+                                >
+                                  <ClockIcon className="w-3 h-3 shrink-0 opacity-90" />
+                                  {adminHistoryActionBadgeLabel(entry.action)}
+                                </span>
+                                {entry.entityType ? (
+                                  <span
+                                    className={`text-[11px] font-medium rounded px-1.5 py-0.5 ${
+                                      isDarkMode ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-600"
+                                    }`}
+                                  >
+                                    {entry.entityType}
+                                    {entry.entityId ? ` #${entry.entityId}` : ""}
+                                  </span>
+                                ) : entry.entityId ? (
+                                  <span
+                                    className={`text-[11px] font-medium rounded px-1.5 py-0.5 ${
+                                      isDarkMode ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-600"
+                                    }`}
+                                  >
+                                    user #{entry.entityId}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <p
+                                className={`mt-1 text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                              >
+                                {entry.userName}
+                              </p>
+                              <p
+                                className={`mt-2 font-medium ${
+                                  isDarkMode ? "text-gray-100" : "text-gray-900"
+                                }`}
+                              >
+                                {entry.details || "—"}
+                              </p>
+                              <UserHistoryAuditBlock entry={entry} isDarkMode={isDarkMode} />
+                            </article>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
 
             {/* Add/Edit User Modal */}
-            {showUserModal && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div
-                  className={`rounded-lg p-6 w-full max-w-2xl ${
-                    isDarkMode ? "bg-gray-800" : "bg-white"
-                  }`}
-                >
-                  <h3 className="text-xl font-semibold mb-4">
-                    {editingUserId ? "Edit User" : "Add User"}
-                  </h3>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label
-                        className={`block text-sm font-medium mb-1 ${
-                          isDarkMode ? "text-gray-300" : "text-gray-700"
-                        }`}
+            {showUserModal && createPortal(
+              <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+                <div className="flex min-h-full items-center justify-center p-4">
+                  <div
+                    className={`rounded-lg p-6 w-full max-w-2xl ${
+                      isDarkMode ? "bg-gray-800" : "bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-xl font-semibold">
+                        {editingUserId ? "Edit User" : "Add User"}
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => setShowUserModal(false)}
+                        className="text-gray-400 hover:text-gray-500 rounded-lg p-2 transition-colors duration-200"
+                        title="Close"
                       >
-                        First Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={userFormData.firstName}
-                        onChange={(e) => setUserFormData({ ...userFormData, firstName: e.target.value })}
-                        placeholder="Enter first name"
-                        className={`w-full px-3 py-2 border rounded-lg ${
-                          isDarkMode
-                            ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
-                            : "bg-white border-gray-300 text-black placeholder-gray-500"
-                        }`}
-                      />
+                        <XMarkIcon className="h-6 w-6" />
+                      </button>
                     </div>
 
-                    <div>
-                      <label
-                        className={`block text-sm font-medium mb-1 ${
-                          isDarkMode ? "text-gray-300" : "text-gray-700"
-                        }`}
-                      >
-                        Last Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={userFormData.lastName}
-                        onChange={(e) => setUserFormData({ ...userFormData, lastName: e.target.value })}
-                        placeholder="Enter last name"
-                        className={`w-full px-3 py-2 border rounded-lg ${
-                          isDarkMode
-                            ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
-                            : "bg-white border-gray-300 text-black placeholder-gray-500"
-                        }`}
-                      />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label
+                          className={`block text-sm font-medium mb-1 ${
+                            isDarkMode ? "text-gray-300" : "text-gray-700"
+                          }`}
+                        >
+                          First Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={userFormData.firstName}
+                          onChange={(e) => setUserFormData({ ...userFormData, firstName: e.target.value })}
+                          placeholder="Enter first name"
+                          className={`w-full px-3 py-2 border rounded-lg ${
+                            isDarkMode
+                              ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                              : "bg-white border-gray-300 text-black placeholder-gray-500"
+                          }`}
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          className={`block text-sm font-medium mb-1 ${
+                            isDarkMode ? "text-gray-300" : "text-gray-700"
+                          }`}
+                        >
+                          Last Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={userFormData.lastName}
+                          onChange={(e) => setUserFormData({ ...userFormData, lastName: e.target.value })}
+                          placeholder="Enter last name"
+                          className={`w-full px-3 py-2 border rounded-lg ${
+                            isDarkMode
+                              ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                              : "bg-white border-gray-300 text-black placeholder-gray-500"
+                          }`}
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          className={`block text-sm font-medium mb-1 ${
+                            isDarkMode ? "text-gray-300" : "text-gray-700"
+                          }`}
+                        >
+                          Email Address <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          value={userFormData.email}
+                          onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
+                          placeholder="Enter email address"
+                          className={`w-full px-3 py-2 border rounded-lg ${
+                            isDarkMode
+                              ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                              : "bg-white border-gray-300 text-black placeholder-gray-500"
+                          }`}
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          className={`block text-sm font-medium mb-1 ${
+                            isDarkMode ? "text-gray-300" : "text-gray-700"
+                          }`}
+                        >
+                          Role <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          value={userFormData.role}
+                          onChange={(e) => {
+                            const newRole = e.target.value;
+                            setUserFormData({
+                              ...userFormData,
+                              role: newRole,
+                              country: newRole === "Admin" ? "Global" : userFormData.country,
+                            });
+                          }}
+                          className={`w-full px-3 py-2 border rounded-lg ${
+                            isDarkMode
+                              ? "bg-gray-700 border-gray-600 text-white"
+                              : "bg-white border-gray-300 text-black"
+                          }`}
+                        >
+                          <option value="">Select a role</option>
+                          <option value="Viewer">Viewer</option>
+                          <option value="Admin">Admin</option>
+                          <option value="Editor">Editor</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label
+                          className={`block text-sm font-medium mb-1 ${
+                            isDarkMode ? "text-gray-300" : "text-gray-700"
+                          }`}
+                        >
+                          Country <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          value={userFormData.country}
+                          onChange={(e) => setUserFormData({ ...userFormData, country: e.target.value })}
+                          disabled={userFormData.role === "Admin"}
+                          className={`w-full px-3 py-2 border rounded-lg ${
+                            isDarkMode
+                              ? "bg-gray-700 border-gray-600 text-white"
+                              : "bg-white border-gray-300 text-black"
+                          } ${userFormData.role === "Admin" ? "opacity-60 cursor-not-allowed bg-gray-100 dark:bg-gray-800" : ""}`}
+                        >
+                          <option value="">Select country</option>
+                          {countryOptions.map((countryName) => (
+                            <option key={`user-country-${countryName}`} value={countryName}>
+                              {countryName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
 
-                    <div>
-                      <label
-                        className={`block text-sm font-medium mb-1 ${
-                          isDarkMode ? "text-gray-300" : "text-gray-700"
-                        }`}
-                      >
-                        Email Address <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        value={userFormData.email}
-                        onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
-                        placeholder="Enter email address"
-                        className={`w-full px-3 py-2 border rounded-lg ${
+                    <div className="flex gap-3 mt-6">
+                      <button
+                        onClick={() => setShowUserModal(false)}
+                        className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
                           isDarkMode
-                            ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
-                            : "bg-white border-gray-300 text-black placeholder-gray-500"
+                            ? "bg-gray-700 hover:bg-gray-600 text-white"
+                            : "bg-gray-200 hover:bg-gray-300 text-black"
                         }`}
-                      />
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveUser}
+                        disabled={isUserActionButtonDisabled}
+                        className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+                          isUserActionButtonDisabled
+                            ? isDarkMode
+                              ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                              : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            : isDarkMode
+                            ? "bg-indigo-600 hover:bg-indigo-700 text-white"
+                            : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                        }`}
+                      >
+                        {editingUserId ? "Update" : "Add"}
+                      </button>
                     </div>
-
-                    <div>
-                      <label
-                        className={`block text-sm font-medium mb-1 ${
-                          isDarkMode ? "text-gray-300" : "text-gray-700"
-                        }`}
-                      >
-                        Role <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={userFormData.role}
-                        onChange={(e) => setUserFormData({ ...userFormData, role: e.target.value })}
-                        className={`w-full px-3 py-2 border rounded-lg ${
-                          isDarkMode
-                            ? "bg-gray-700 border-gray-600 text-white"
-                            : "bg-white border-gray-300 text-black"
-                        }`}
-                      >
-                        <option value="">Select a role</option>
-                        <option value="Viewer">Viewer</option>
-                        <option value="Admin">Admin</option>
-                        <option value="Editor">Editor</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label
-                        className={`block text-sm font-medium mb-1 ${
-                          isDarkMode ? "text-gray-300" : "text-gray-700"
-                        }`}
-                      >
-                        Country <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={userFormData.country}
-                        onChange={(e) => setUserFormData({ ...userFormData, country: e.target.value })}
-                        className={`w-full px-3 py-2 border rounded-lg ${
-                          isDarkMode
-                            ? "bg-gray-700 border-gray-600 text-white"
-                            : "bg-white border-gray-300 text-black"
-                        }`}
-                      >
-                        <option value="">Select country</option>
-                        {countryOptions.map((countryName) => (
-                          <option key={`user-country-${countryName}`} value={countryName}>
-                            {countryName}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3 mt-6">
-                    <button
-                      onClick={() => setShowUserModal(false)}
-                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
-                        isDarkMode
-                          ? "bg-gray-700 hover:bg-gray-600 text-white"
-                          : "bg-gray-200 hover:bg-gray-300 text-black"
-                      }`}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSaveUser}
-                      disabled={isUserActionButtonDisabled}
-                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
-                        isUserActionButtonDisabled
-                          ? isDarkMode
-                            ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                          : isDarkMode
-                          ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-                          : "bg-indigo-600 hover:bg-indigo-700 text-white"
-                      }`}
-                    >
-                      {editingUserId ? "Update" : "Add"}
-                    </button>
                   </div>
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
           </div>
         )}

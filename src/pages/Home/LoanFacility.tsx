@@ -1,6 +1,7 @@
 import { ClockIcon, DocumentTextIcon, TableCellsIcon } from "@heroicons/react/24/outline";
 import { Field, Label } from "@headlessui/react";
 import ReactSelect from "react-select";
+import { createPortal } from "react-dom";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef } from "ag-grid-community";
 import type { LoanFacility, LoanHistoryEntry } from "../../utils/constants";
@@ -656,14 +657,15 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
           </Field>
         </div>
 
-        {showLoanFacilityHistoryModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      {showLoanFacilityHistoryModal && createPortal(
+        <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
             <div
-              className={`rounded-lg p-6 w-full max-w-4xl h-[80vh] flex flex-col ${
+              className={`rounded-lg p-6 w-full max-w-4xl h-[80vh] flex flex-col shadow-xl ${
                 isDarkMode ? "bg-gray-800" : "bg-white"
               }`}
             >
-              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-semibold">Loan Facility Change History</h3>
                 <button
                   type="button"
@@ -761,16 +763,39 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                   })
                 )}
               </div>
+              </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
-        {showLoanFacilityModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className={`rounded-lg p-6 w-full max-w-3xl ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
-              <h3 className="text-xl font-semibold mb-4">
-                {isCreatingLoan ? "Add Loan Facility" : "Edit Loan Facility"}
-              </h3>
+      {showLoanFacilityModal && createPortal(
+        <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div
+              className={`relative rounded-lg p-6 w-full max-w-3xl shadow-xl ${
+                isDarkMode ? "bg-gray-800" : "bg-white"
+              }`}
+            >
+                <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold">
+                  {isCreatingLoan ? "Add Loan Facility" : "Edit Loan Facility"}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowLoanFacilityModal(false)}
+                  aria-label="Close"
+                  className={`p-1.5 rounded-lg transition-colors ${
+                    isDarkMode
+                      ? "text-gray-400 hover:text-white hover:bg-gray-700"
+                      : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
+                  }`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -965,6 +990,19 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                 </div>
               </div>
 
+              {errorMessage && (
+                <div className={`mt-4 flex items-start gap-2 rounded-lg border px-4 py-3 text-sm ${
+                  isDarkMode
+                    ? "bg-rose-900/30 border-rose-700/60 text-rose-300"
+                    : "bg-rose-50 border-rose-200 text-rose-700"
+                }`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mt-0.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10A8 8 0 11 2 10a8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <span>{errorMessage}</span>
+                </div>
+              )}
+
               <div className="flex gap-3 mt-6">
                 <button
                   type="button"
@@ -992,8 +1030,10 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                   {isCreatingLoan ? "Add" : "Edit"}
                 </button>
               </div>
+              </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         <div className={`rounded-xl border p-6 ${isDarkMode ? "bg-gray-900 border-gray-700" : "bg-white border-gray-200"}`}>
@@ -1113,10 +1153,31 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
               </div>
             </div>
 
-            {isImportScheduleModalOpen && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div className={`rounded-lg p-6 w-full max-w-lg ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
-                  <h3 className="text-xl font-semibold mb-4">Import Draw Down Schedule</h3>
+            {isImportScheduleModalOpen && createPortal(
+              <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+                <div className="flex min-h-full items-center justify-center p-4">
+                  <div
+                    className={`relative rounded-lg p-6 w-full max-w-lg shadow-xl ${
+                      isDarkMode ? "bg-gray-800" : "bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-xl font-semibold">Import Draw Down Schedule</h3>
+                    <button
+                      type="button"
+                      onClick={closeImportScheduleModal}
+                      aria-label="Close"
+                      className={`p-1.5 rounded-lg transition-colors ${
+                        isDarkMode
+                          ? "text-gray-400 hover:text-white hover:bg-gray-700"
+                          : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
+                      }`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
 
                   <div className="space-y-4">
                     <button
@@ -1215,14 +1276,37 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                       Import
                     </button>
                   </div>
+                  </div>
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
 
-            {showScheduleRowModal && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div className={`rounded-lg p-6 w-full max-w-2xl ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
-                  <h3 className="text-xl font-semibold mb-4">{scheduleRowModalTitle}</h3>
+            {showScheduleRowModal && createPortal(
+              <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+                <div className="flex min-h-full items-center justify-center p-4">
+                  <div
+                    className={`relative rounded-lg p-6 w-full max-w-2xl shadow-xl ${
+                      isDarkMode ? "bg-gray-800" : "bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-xl font-semibold">{scheduleRowModalTitle}</h3>
+                    <button
+                      type="button"
+                      onClick={onCloseScheduleRowModal}
+                      aria-label="Close"
+                      className={`p-1.5 rounded-lg transition-colors ${
+                        isDarkMode
+                          ? "text-gray-400 hover:text-white hover:bg-gray-700"
+                          : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
+                      }`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
@@ -1424,8 +1508,10 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                   {scheduleRowValidationMessage && (
                     <p className="mt-3 text-sm text-red-500">{scheduleRowValidationMessage}</p>
                   )}
+                  </div>
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
           </div>
         </div>
