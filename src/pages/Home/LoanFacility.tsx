@@ -194,7 +194,6 @@ type LoanFacilityTabProps = {
   handleScheduleImportFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   importScheduleMode: "overwrite" | "extend";
   setImportScheduleMode: (value: "overwrite" | "extend") => void;
-  errorMessage: string | null;
   closeImportScheduleModal: () => void;
   handleImportSchedule: () => void;
   showScheduleRowModal: boolean;
@@ -270,7 +269,6 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     handleScheduleImportFileChange,
     importScheduleMode,
     setImportScheduleMode,
-    errorMessage,
     closeImportScheduleModal,
     handleImportSchedule,
     showScheduleRowModal,
@@ -990,18 +988,6 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                 </div>
               </div>
 
-              {errorMessage && (
-                <div className={`mt-4 flex items-start gap-2 rounded-lg border px-4 py-3 text-sm ${
-                  isDarkMode
-                    ? "bg-rose-900/30 border-rose-700/60 text-rose-300"
-                    : "bg-rose-50 border-rose-200 text-rose-700"
-                }`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mt-0.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M18 10A8 8 0 11 2 10a8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                  <span>{errorMessage}</span>
-                </div>
-              )}
 
               <div className="flex gap-3 mt-6">
                 <button
@@ -1244,9 +1230,6 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                       </select>
                     </div>
 
-                    {errorMessage && (
-                      <div className="text-sm text-red-500">{errorMessage}</div>
-                    )}
                   </div>
 
                   <div className="flex gap-3 mt-6">

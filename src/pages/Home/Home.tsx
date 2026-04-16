@@ -362,7 +362,6 @@ export default function Home() {
   const [showLoanFacilityModal, setShowLoanFacilityModal] = useState(false);
   const [loanForm, setLoanForm] = useState(emptyLoanForm);
   const [activeTab, setActiveTab] = useState<"loan-facility" | "report" | "admin">("loan-facility");
-    const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const [companies, setCompanies] = useState<Company[]>([
     {
@@ -661,7 +660,6 @@ export default function Home() {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to fetch company history";
-      setErrorMessage(message);
       toast.error(message);
     } finally {
       setIsCompanyHistoryLoading(false);
@@ -704,7 +702,6 @@ export default function Home() {
       setUserHistory(historyRows);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to fetch user history";
-      setErrorMessage(message);
       toast.error(message);
     } finally {
       setIsUserHistoryLoading(false);
@@ -770,6 +767,15 @@ export default function Home() {
       normalizedBankAccounts.length === 0
     ) {
       toast.error("Please fill in all fields");
+      return;
+    }
+
+    const sapCode = formData.sapCode.trim().toUpperCase();
+    const isDuplicate = companies.some(
+      (c) => c.sapCode.toUpperCase() === sapCode && c.id !== editingId
+    );
+    if (isDuplicate) {
+      toast.error(`Company with SAP Code "${sapCode}" already exists.`);
       return;
     }
 
@@ -1031,6 +1037,15 @@ export default function Home() {
       return;
     }
 
+    const email = userFormData.email.trim().toLowerCase();
+    const isDuplicate = users.some(
+      (u) => u.email.toLowerCase() === email && u.id !== editingUserId
+    );
+    if (isDuplicate) {
+      toast.error(`User with email "${email}" already exists.`);
+      return;
+    }
+
     try {
       const poAccessToken = localStorage.getItem("poAccessToken");
       if (!poAccessToken) {
@@ -1243,6 +1258,13 @@ export default function Home() {
     }
 
     const normalizedCode = countryFormData.countryCode.trim().toUpperCase();
+    const isDuplicate = countries.some(
+      (c) => c.countryCode.toUpperCase() === normalizedCode && c.id !== editingCountryId
+    );
+    if (isDuplicate) {
+      toast.error(`Country with code "${normalizedCode}" already exists.`);
+      return;
+    }
 
     try {
       const poAccessToken = localStorage.getItem("poAccessToken");
@@ -1329,6 +1351,15 @@ export default function Home() {
       toast.error("Please enter a currency code.");
       return;
     }
+
+    const isDuplicate = currencyExchanges.some(
+      (ex) => ex.currency.toUpperCase() === currency && ex.id !== editingCurrencyExchangeId
+    );
+    if (isDuplicate) {
+      toast.error(`Currency "${currency}" already exists.`);
+      return;
+    }
+
     if (!Number.isFinite(rate)) {
       toast.error("Please enter a valid exchange rate.");
       return;
@@ -1652,7 +1683,6 @@ export default function Home() {
       toast.error("Access denied: editor role is required for this action");
       return;
     }
-    setErrorMessage(null)
     setImportScheduleMode('extend')
     setImportScheduleFile(null)
     setIsImportScheduleModalOpen(true)
@@ -1661,7 +1691,6 @@ export default function Home() {
   const closeImportScheduleModal = () => {
     setIsImportScheduleModalOpen(false)
     setImportScheduleFile(null)
-    setErrorMessage(null)
   }
 
   const downloadScheduleImportTemplate = () => {
@@ -1705,7 +1734,6 @@ export default function Home() {
     const file = event.target.files?.[0] ?? null;
     event.target.value = "";
     setImportScheduleFile(file);
-    setErrorMessage(null);
   };
 
   const handleImportSchedule = async () => {
@@ -1719,7 +1747,7 @@ export default function Home() {
     }
 
     if (!importScheduleFile) {
-      setErrorMessage("Please choose a file to import.");
+      toast.error("Please choose a file to import.");
       return;
     }
 
@@ -1756,7 +1784,6 @@ export default function Home() {
     } catch (error) {
       console.error("Failed to import schedule file", error);
       const message = error instanceof Error ? error.message : "Failed to import schedule file.";
-      setErrorMessage(message);
       toast.error(message);
     }
   };
@@ -2145,7 +2172,7 @@ export default function Home() {
   }, [isCreatingLoan, selectedLoanId, visibleLoans]);
 
   useEffect(() => {
-    // Do not clear localStorage when id is empty — on refresh, selection is "" until loans load;
+    // Do not clear localStorage when id is empty â€” on refresh, selection is "" until loans load;
     // clearing here was wiping persistence before restore could run.
     if (!selectedLoanId.trim()) {
       return;
@@ -2194,7 +2221,6 @@ export default function Home() {
       toast.error("Access denied: editor role is required for this action");
       return;
     }
-    setErrorMessage(null);
     setIsCreatingLoan(true);
    
      setLoanForm({
@@ -2208,16 +2234,13 @@ export default function Home() {
   };
 
   const handleEditLoanFacility = () => {
-     setErrorMessage(null)
 
     if (!canEdit) {
-    //setErrorMessage('Access denied: editor role is required for this action')
        toast.error("Access denied: editor role is required for this action");
       return
     }
 
     if (!selectedLoanId || !selectedLoanFacility) {
-      setErrorMessage('Select a loan facility first')
       return
     }
 
@@ -2572,7 +2595,6 @@ export default function Home() {
   useEffect(() => {
     loadAllData().catch((error) => {
       const message = error instanceof Error ? error.message : "Failed to load data";
-      setErrorMessage(message);
       toast.error(message);
     });
   }, [loadAllData]);
@@ -2605,7 +2627,7 @@ export default function Home() {
         }
         const message =
           error instanceof Error ? error.message : "Failed to load loan facility schedule";
-        setErrorMessage(message);
+        toast.error(message);
       });
 
     return () => {
@@ -2634,7 +2656,6 @@ export default function Home() {
       setLoanFacilityHistory(historyRows);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to load loan facility history";
-      setErrorMessage(message);
       toast.error(message);
     } finally {
       setIsLoanFacilityHistoryLoading(false);
@@ -2645,7 +2666,6 @@ export default function Home() {
   const handleSaveLoanFacility = async () => {
 
 
-     setErrorMessage(null)
     const existingLoanIds = new Set(loans.map((loan) => String(loan.id)));
     let createdLoanId = "";
 
@@ -2737,7 +2757,6 @@ export default function Home() {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Loan save failed';
-      setErrorMessage(message);
       toast.error(message);
     }
 
@@ -3000,7 +3019,6 @@ export default function Home() {
             handleScheduleImportFileChange={handleScheduleImportFileChange}
             importScheduleMode={importScheduleMode}
             setImportScheduleMode={setImportScheduleMode}
-            errorMessage={errorMessage}
             closeImportScheduleModal={closeImportScheduleModal}
             handleImportSchedule={handleImportSchedule}
             showScheduleRowModal={showScheduleRowModal}
@@ -3691,7 +3709,7 @@ export default function Home() {
                           : "bg-indigo-600 hover:bg-indigo-700 text-white"
                       }`}
                     >
-                      Save
+                      {editingCurrencyExchangeId ? "Update" : "Add"}
                     </button>
                   </div>
                   </div>
@@ -3986,7 +4004,7 @@ export default function Home() {
 
                           const parsedTime = new Date(entry.timestamp);
                           const timeLabel = Number.isNaN(parsedTime.getTime())
-                            ? entry.timestamp || "—"
+                            ? entry.timestamp || "â€”"
                             : parsedTime.toLocaleString("en-GB", {
                                 day: "2-digit",
                                 month: "2-digit",
@@ -4009,7 +4027,7 @@ export default function Home() {
                                   {timeLabel}
                                 </span>
                                 <span className={isDarkMode ? "text-gray-500" : "text-gray-400"}>
-                                  ·
+                                  Â·
                                 </span>
                                 <span className={isDarkMode ? "text-gray-200" : "text-gray-800"}>
                                   {entry.createdBy || "System"}
@@ -4049,7 +4067,7 @@ export default function Home() {
                                   isDarkMode ? "text-gray-100" : "text-gray-900"
                                 }`}
                               >
-                                {entry.details || "—"}
+                                {entry.details || "â€”"}
                               </p>
                               <CompanyHistoryAuditBlock entry={entry} isDarkMode={isDarkMode} />
                             </article>
@@ -4753,7 +4771,7 @@ export default function Home() {
 
                           const parsedTime = new Date(entry.timestamp);
                           const timeLabel = Number.isNaN(parsedTime.getTime())
-                            ? entry.timestamp || "—"
+                            ? entry.timestamp || "â€”"
                             : parsedTime.toLocaleString("en-GB", {
                                 day: "2-digit",
                                 month: "2-digit",
@@ -4776,7 +4794,7 @@ export default function Home() {
                                   {timeLabel}
                                 </span>
                                 <span className={isDarkMode ? "text-gray-500" : "text-gray-400"}>
-                                  ·
+                                  Â·
                                 </span>
                                 <span className={isDarkMode ? "text-gray-200" : "text-gray-800"}>
                                   {entry.performedBy || "System"}
@@ -4816,7 +4834,7 @@ export default function Home() {
                                   isDarkMode ? "text-gray-100" : "text-gray-900"
                                 }`}
                               >
-                                {entry.details || "—"}
+                                {entry.details || "â€”"}
                               </p>
                               <UserHistoryAuditBlock entry={entry} isDarkMode={isDarkMode} />
                             </article>

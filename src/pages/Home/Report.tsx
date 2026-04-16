@@ -441,9 +441,7 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
     const doc = new jsPDF({ orientation: "landscape" });
     doc.setFontSize(16);
     doc.text("Loans & Transfers - Country Summary Report", 14, 16);
-
-    doc.setFontSize(10);
-    const exportDate = new Date().toLocaleString("en-GB", {
+    const exportDateString = new Date().toLocaleString("en-GB", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -451,11 +449,19 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
       minute: "2-digit",
       second: "2-digit",
     });
-    doc.text(`Exported Date: ${exportDate}`, 14, 24);
-    doc.text(`Total Amount of Data (Total Exposure): ${formatCurrency(reportKpis.total)}`, 14, 30);
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    doc.setFontSize(10);
+    doc.text(exportDateString, pageWidth - 14, 16, { align: "right" });
+
+    doc.setFontSize(10);
+    doc.text(`Countries Included: ${reportKpis.countries}`, 14, 24);
+    doc.text(`Cumulative Interest: ${formatCurrency(reportKpis.cumulativeInterest)}`, 14, 30);
+    doc.text(`Cumulative Principal: ${formatCurrency(reportKpis.cumulativePrincipal)}`, 14, 36);
+    doc.text(`Total Amount of Data (Total Exposure): ${formatCurrency(reportKpis.total)}`, 14, 42);
 
     autoTable(doc, {
-      startY: 36,
+      startY: 48,
       head: [["Country", "Cumulative Interest", "Cumulative Principal", "Total"]],
       body: countrySummary.map((row) => [
         row.country,
@@ -520,17 +526,17 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
 
     summarySlide.addText(`Exported Date: ${exportDateString}`, {
       x: 0.5,
-      y: 2.5,
+      y: 2.2,
       w: 12,
-      h: 0.5,
-      fontSize: 18,
+      h: 0.4,
+      fontSize: 16,
       color: "666666",
       align: "center",
     });
 
     summarySlide.addText(`Total Amount of Data (Total Exposure): ${formatCurrency(reportKpis.total)}`, {
       x: 0.5,
-      y: 3.5,
+      y: 3.0,
       w: 12,
       h: 0.5,
       fontSize: 24,
@@ -541,9 +547,29 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
 
     summarySlide.addText(`Countries Included: ${reportKpis.countries}`, {
       x: 0.5,
-      y: 4.5,
+      y: 4.0,
       w: 12,
-      h: 0.5,
+      h: 0.4,
+      fontSize: 18,
+      color: "666666",
+      align: "center",
+    });
+
+    summarySlide.addText(`Cumulative Interest: ${formatCurrency(reportKpis.cumulativeInterest)}`, {
+      x: 0.5,
+      y: 4.8,
+      w: 12,
+      h: 0.4,
+      fontSize: 18,
+      color: "666666",
+      align: "center",
+    });
+
+    summarySlide.addText(`Cumulative Principal: ${formatCurrency(reportKpis.cumulativePrincipal)}`, {
+      x: 0.5,
+      y: 5.6,
+      w: 12,
+      h: 0.4,
       fontSize: 18,
       color: "666666",
       align: "center",
