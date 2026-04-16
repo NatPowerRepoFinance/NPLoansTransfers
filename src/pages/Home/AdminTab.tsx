@@ -593,6 +593,10 @@ export default function AdminTab({ isDarkMode }: AdminTabProps) {
                 Next
               </button>
             </div>
+          </div>
+        )}
+      </div>
+
       {/* Add/Edit Modal */}
       {showModal && createPortal(
         <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
