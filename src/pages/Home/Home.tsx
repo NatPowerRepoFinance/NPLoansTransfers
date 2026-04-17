@@ -1159,15 +1159,28 @@ export default function Home() {
   };
 
   const handleUserImport = async () => {
+    if (!isAdminRoleFromStorage()) {
+      toast.error("Access denied: admin role is required.");
+      return;
+    }
+
     if (!importUserFile) {
       setImportUserError("Please choose a file to import.");
       return;
     }
 
+    setImportUserError(null);
+
     try {
+      const poAccessToken = localStorage.getItem("poAccessToken");
+      if (!poAccessToken) {
+        throw new Error("Access token is missing. Please sign in again.");
+      }
+
       const buffer = await importUserFile.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array" });
       const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) throw new Error("The uploaded file contains no sheets.");
       const sheet = workbook.Sheets[firstSheetName];
       const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
         defval: "",
@@ -1175,23 +1188,17 @@ export default function Home() {
 
       const normalizedRows = rawRows
         .map((row, index) => {
-          const idValue = row.ID ?? row.id ?? String(index + 1);
           const firstName = String(row["First Name"] ?? row.firstName ?? "").trim();
           const lastName = String(row["Last Name"] ?? row.lastName ?? "").trim();
-          const email = String(row["Email Address"] ?? row.email ?? "").trim();
+          const email = String(row["Email Address"] ?? row.email ?? row.Email ?? "").trim();
           const role = String(row.Role ?? row.role ?? "").trim();
           const country = String(row.Country ?? row.country ?? "").trim();
 
-          return {
-            id: String(idValue || index + 1),
-            firstName,
-            lastName,
-            email,
-            role,
-            country,
-          } as User;
+          if (!firstName || !lastName || !email || !role || !country) return null;
+
+          return { firstName, lastName, email, role, country };
         })
-        .filter((row) => row.firstName && row.lastName && row.email && row.role && row.country);
+        .filter((row): row is NonNullable<typeof row> => row !== null);
 
       if (normalizedRows.length === 0) {
         setImportUserError("No valid user rows found in import file.");
@@ -1202,21 +1209,30 @@ export default function Home() {
         if (!window.confirm("WARNING: Overwrite mode will replace all existing user data with the data from this file. Are you sure you want to proceed?")) {
           return;
         }
+        // Delete all existing users
+        const existingUsers = await getUsers(poAccessToken);
+        for (const user of existingUsers) {
+          await deleteUser(poAccessToken, user.id);
+        }
       }
 
-      if (importUserMode === 'overwrite') {
-        setUsers(normalizedRows);
-      } else {
-        setUsers((prev) => [...prev, ...normalizedRows]);
+      // Create each user from the file
+      for (const row of normalizedRows) {
+        await createUser(poAccessToken, row);
       }
+
+      await loadAllData();
+
       addUserHistoryEntry("IMPORT", "Bulk Import", `Imported ${normalizedRows.length} users from ${importUserFile.name} (Mode: ${importUserMode})`);
       toast.success(`Imported ${normalizedRows.length} users`);
       setIsImportUserModalOpen(false);
       setImportUserFile(null);
       setImportUserMode('extend');
       setImportUserError(null);
-    } catch {
-      setImportUserError("Failed to import users file.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to import users file.";
+      setImportUserError(message);
+      toast.error(message);
     }
   };
 
@@ -3134,43 +3150,25 @@ export default function Home() {
                         : "File (.xlsx, .xls, .csv)"}
                     </div>
 
-                    {importCompanyFile && (
-                      <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-700">
-                        <label className={`text-sm font-medium ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                          Import Mode
-                        </label>
-                        <div className="flex flex-col gap-2">
-                          <label className="flex items-center gap-2 cursor-pointer group">
-                            <input
-                              type="radio"
-                              name="importCompanyMode"
-                              value="extend"
-                              checked={importCompanyMode === 'extend'}
-                              onChange={() => setImportCompanyMode('extend')}
-                              className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                            />
-                            <span className={`text-sm ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                              Extend Existing Companies
-                              <span className="block text-xs text-gray-500 dark:text-gray-400">Add new items without affecting existing ones</span>
-                            </span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer group">
-                            <input
-                              type="radio"
-                              name="importCompanyMode"
-                              value="overwrite"
-                              checked={importCompanyMode === 'overwrite'}
-                              onChange={() => setImportCompanyMode('overwrite')}
-                              className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                            />
-                            <span className={`text-sm ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                              Overwrite Existing Companies
-                              <span className="block text-xs text-red-500 dark:text-red-400">Warning: All existing data will be replaced</span>
-                            </span>
-                          </label>
-                        </div>
-                      </div>
-                    )}
+                    <div>
+                      <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                        Import Mode
+                      </label>
+                      <select
+                        value={importCompanyMode}
+                        onChange={(e) =>
+                          setImportCompanyMode(e.target.value as "overwrite" | "extend")
+                        }
+                        className={`w-full px-3 py-2 border rounded-lg ${
+                          isDarkMode
+                            ? "bg-gray-700 border-gray-600 text-white"
+                            : "bg-white border-gray-300 text-black"
+                        }`}
+                      >
+                        <option value="extend">Extend existing companies</option>
+                        <option value="overwrite">Overwrite existing companies</option>
+                      </select>
+                    </div>
 
                     {importCompanyError && (
                       <div className="text-sm text-red-500 font-medium">
@@ -4420,43 +4418,25 @@ export default function Home() {
                             : "File (.xlsx, .xls, .csv)"}
                         </div>
 
-                        {importUserFile && (
-                          <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-700">
-                            <label className={`text-sm font-medium ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                              Import Mode
-                            </label>
-                            <div className="flex flex-col gap-2">
-                              <label className="flex items-center gap-2 cursor-pointer group">
-                                <input
-                                  type="radio"
-                                  name="importUserMode"
-                                  value="extend"
-                                  checked={importUserMode === 'extend'}
-                                  onChange={() => setImportUserMode('extend')}
-                                  className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                                />
-                                <span className={`text-sm ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                                  Extend Existing Users
-                                  <span className="block text-xs text-gray-500 dark:text-gray-400">Add new users without affecting existing ones</span>
-                                </span>
-                              </label>
-                              <label className="flex items-center gap-2 cursor-pointer group">
-                                <input
-                                  type="radio"
-                                  name="importUserMode"
-                                  value="overwrite"
-                                  checked={importUserMode === 'overwrite'}
-                                  onChange={() => setImportUserMode('overwrite')}
-                                  className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                                />
-                                <span className={`text-sm ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                                  Overwrite Existing Users
-                                  <span className="block text-xs text-red-500 dark:text-red-400">Warning: Existing user data will be replaced</span>
-                                </span>
-                              </label>
-                            </div>
-                          </div>
-                        )}
+                        <div>
+                          <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                            Import Mode
+                          </label>
+                          <select
+                            value={importUserMode}
+                            onChange={(e) =>
+                              setImportUserMode(e.target.value as "overwrite" | "extend")
+                            }
+                            className={`w-full px-3 py-2 border rounded-lg ${
+                              isDarkMode
+                                ? "bg-gray-700 border-gray-600 text-white"
+                                : "bg-white border-gray-300 text-black"
+                            }`}
+                          >
+                            <option value="extend">Extend existing users</option>
+                            <option value="overwrite">Overwrite existing users</option>
+                          </select>
+                        </div>
 
                         {importUserError && (
                           <div className="text-sm text-red-500 font-medium">{importUserError}</div>

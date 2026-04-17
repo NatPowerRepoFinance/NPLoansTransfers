@@ -751,28 +751,63 @@ export const deleteCompany = async (
   }
 };
 
-/** POST multipart/form-data; file field name `file` (adjust if backend expects another key). */
+/**
+ * Client-side import: parses the Excel/CSV file, then calls
+ * createCompany (extend) or deleteCompany + createCompany (overwrite)
+ * using the existing REST endpoints.
+ */
 export const importCompanies = async (
   poAccessToken: string,
   file: File,
   mode: "overwrite" | "extend" = "extend",
 ): Promise<void> => {
-  const endpoint = new URL(`${API_BASE_URL}/api/v1/companies/import`);
-  endpoint.searchParams.set("mode", mode);
+  // Dynamic import so the XLSX dep is only pulled in at call-time
+  const XLSX = await import("xlsx");
 
-  const formData = new FormData();
-  formData.append("file", file, file.name);
+  const buffer = await file.arrayBuffer();
+  const workbook = XLSX.read(buffer, { type: "array" });
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName) throw new Error("The uploaded file contains no sheets.");
 
-  const response = await fetch(endpoint.toString(), {
-    method: "POST",
-    headers: {
-      "X-Access-Token": poAccessToken,
-    },
-    body: formData,
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(
+    workbook.Sheets[sheetName],
+    { defval: "" },
+  );
+
+  if (rows.length === 0) throw new Error("The uploaded file contains no data rows.");
+
+  // Normalise each row into a CreateCompanyPayload
+  const payloads: CreateCompanyPayload[] = rows.map((row, idx) => {
+    const name = String(row["Name"] ?? row["name"] ?? "").trim();
+    const code = String(row["SAP Code"] ?? row["sapCode"] ?? row["code"] ?? row["Code"] ?? "").trim();
+    const type = String(row["Type"] ?? row["type"] ?? "").trim();
+    const country = String(row["Country"] ?? row["country"] ?? "").trim();
+    const bankRaw = String(row["Bank Accounts"] ?? row["bankAccounts"] ?? row["bank_accounts"] ?? "").trim();
+
+    if (!name) throw new Error(`Row ${idx + 2}: "Name" is required.`);
+
+    const bankAccounts = bankRaw
+      ? bankRaw.split(";").map((acc, i) => ({
+          id: 0,
+          accountName: acc.trim(),
+          rowIndex: i + 1,
+        })).filter((a) => a.accountName)
+      : [];
+
+    return { id: 0, name, code, type, country, bankAccounts };
   });
 
-  if (!response.ok) {
-    throw new Error(await readApiErrorMessage(response, `Failed to import companies (${response.status})`));
+  // Overwrite → delete every existing company first
+  if (mode === "overwrite") {
+    const existing = await getCompanies(poAccessToken);
+    for (const company of existing) {
+      await deleteCompany(poAccessToken, company.id);
+    }
+  }
+
+  // Create each company from the file
+  for (const payload of payloads) {
+    await createCompany(poAccessToken, payload);
   }
 };
 
