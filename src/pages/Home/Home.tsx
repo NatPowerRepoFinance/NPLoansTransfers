@@ -1187,7 +1187,7 @@ export default function Home() {
       });
 
       const normalizedRows = rawRows
-        .map((row, index) => {
+        .map((row) => {
           const firstName = String(row["First Name"] ?? row.firstName ?? "").trim();
           const lastName = String(row["Last Name"] ?? row.lastName ?? "").trim();
           const email = String(row["Email Address"] ?? row.email ?? row.Email ?? "").trim();
