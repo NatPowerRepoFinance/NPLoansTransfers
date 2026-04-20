@@ -1154,6 +1154,7 @@ export default function Home() {
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = event.target.files?.[0] ?? null;
+    event.target.value = "";
     setImportUserFile(file);
     setImportUserError(null);
   };
@@ -1209,16 +1210,29 @@ export default function Home() {
         if (!window.confirm("WARNING: Overwrite mode will replace all existing user data with the data from this file. Are you sure you want to proceed?")) {
           return;
         }
-        // Delete all existing users
+        // Delete all existing users except the currently logged-in user
+        const currentUserEmail = sessionEmailForMatching().toLowerCase();
         const existingUsers = await getUsers(poAccessToken);
         for (const user of existingUsers) {
+          if (user.email.toLowerCase() === currentUserEmail) continue;
           await deleteUser(poAccessToken, user.id);
         }
       }
 
-      // Create each user from the file
+      // Create each user from the file (update if email already exists)
+      const existingUsers = await getUsers(poAccessToken);
       for (const row of normalizedRows) {
-        await createUser(poAccessToken, row);
+        const existingMatch = existingUsers.find(
+          (u) => u.email.toLowerCase() === row.email.toLowerCase()
+        );
+        if (existingMatch) {
+          await updateUser(poAccessToken, existingMatch.id, {
+            id: Number(existingMatch.id) || 0,
+            ...row,
+          });
+        } else {
+          await createUser(poAccessToken, row);
+        }
       }
 
       await loadAllData();
@@ -4359,13 +4373,6 @@ export default function Home() {
                     <ClockIcon className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
                     <span>History Log</span>
                   </button>
-                  <input
-                    ref={userImportInputRef}
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    onChange={handleUserImportFileChange}
-                    className="hidden"
-                  />
                 </div>
               </div>
 
@@ -4406,6 +4413,13 @@ export default function Home() {
                           >
                             File Import
                           </button>
+                          <input
+                            ref={userImportInputRef}
+                            type="file"
+                            accept=".xlsx,.xls,.csv"
+                            onChange={handleUserImportFileChange}
+                            className="hidden"
+                          />
                         </div>
 
                         <div
