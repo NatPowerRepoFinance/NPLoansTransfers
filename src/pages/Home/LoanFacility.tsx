@@ -226,6 +226,7 @@ type LoanFacilityTabProps = {
   availableLenderBankAccounts: string[];
   availableBorrowerBankAccounts: string[];
   handleSaveScheduleRow: () => void;
+  insertDateBounds: { minDate: string; maxDate: string; afterRowIndex: number; parentRowId: string } | null;
 };
 
 export default function LoanFacilityTab(props: LoanFacilityTabProps) {
@@ -282,6 +283,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     availableLenderBankAccounts,
     availableBorrowerBankAccounts,
     handleSaveScheduleRow,
+    insertDateBounds,
   } = props;
 
   const isScheduleRowSubmitDisabled = (() => {
@@ -306,11 +308,22 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
       !scheduleForm.endDate ||
       scheduleForm.endDate >= scheduleForm.startDate;
 
+    const datesWithinInsertBounds = !insertDateBounds ||
+      !scheduleForm.startDate ||
+      !scheduleForm.endDate ||
+      (
+        scheduleForm.startDate >= insertDateBounds.minDate &&
+        scheduleForm.startDate <= insertDateBounds.maxDate &&
+        scheduleForm.endDate >= insertDateBounds.minDate &&
+        scheduleForm.endDate <= insertDateBounds.maxDate
+      );
+
     return !(
       hasRequiredFields &&
       hasValidNumbers &&
       repaymentWithinDrawDown &&
-      endDateNotEarlierThanStartDate
+      endDateNotEarlierThanStartDate &&
+      datesWithinInsertBounds
     );
   })();
   const scheduleRowValidationMessage = (() => {
@@ -327,6 +340,25 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     const hasValidNumbers = ![drawDown, repayment].some((value) => Number.isNaN(value));
     if (hasValidNumbers && repayment > drawDown) {
       return "Repayment cannot be greater than Draw Down.";
+    }
+
+    if (
+      insertDateBounds &&
+      scheduleForm.startDate &&
+      scheduleForm.endDate
+    ) {
+      if (
+        scheduleForm.startDate < insertDateBounds.minDate ||
+        scheduleForm.startDate > insertDateBounds.maxDate
+      ) {
+        return `Start Date must be between ${insertDateBounds.minDate} and ${insertDateBounds.maxDate}.`;
+      }
+      if (
+        scheduleForm.endDate < insertDateBounds.minDate ||
+        scheduleForm.endDate > insertDateBounds.maxDate
+      ) {
+        return `End Date must be between ${insertDateBounds.minDate} and ${insertDateBounds.maxDate}.`;
+      }
     }
 
     return "";
@@ -1148,6 +1180,22 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                     headerHeight={42}
                     suppressCellFocus
                     overlayNoRowsTemplate="No draw down schedule rows available."
+                    getRowStyle={(params: any) => {
+                      if (params.data?.isChild) {
+                        const level = params.data.nestingLevel ?? 1;
+                        const opacity = Math.min(0.08 + (level - 1) * 0.04, 0.2);
+                        const borderWidth = Math.min(2 + level, 5);
+                        return {
+                          backgroundColor: isDarkMode
+                            ? `rgba(99, 102, 241, ${opacity})`
+                            : `rgba(99, 102, 241, ${opacity * 0.6})`,
+                          borderLeft: isDarkMode
+                            ? `${borderWidth}px solid rgba(99, 102, 241, 0.5)`
+                            : `${borderWidth}px solid rgba(99, 102, 241, 0.35)`,
+                        };
+                      }
+                      return undefined;
+                    }}
                   />
                 </div>
               </div>
@@ -1308,16 +1356,40 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                     </button>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {insertDateBounds && (
+                      <div className="col-span-1 md:col-span-2">
+                        <div className={`flex items-start gap-2 px-3 py-2 rounded-lg text-xs ${
+                          isDarkMode
+                            ? 'bg-indigo-500/10 border border-indigo-400/30 text-indigo-300'
+                            : 'bg-indigo-50 border border-indigo-200 text-indigo-700'
+                        }`}>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mt-0.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                          </svg>
+                          <span>
+                            Dates must fall within the parent row range: <strong>{insertDateBounds.minDate}</strong> to <strong>{insertDateBounds.maxDate}</strong>
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     <div>
                       <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
                         Start Date <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="date"
-                        value={scheduleForm.startDate}
-                        onChange={(e) =>
-                          setScheduleForm((prev) => ({ ...prev, startDate: e.target.value }))
-                        }
+                        value={scheduleForm.startDate?.substring(0, 10) || ""}
+                        min={insertDateBounds ? insertDateBounds.minDate.substring(0, 10) : undefined}
+                        max={insertDateBounds ? insertDateBounds.maxDate.substring(0, 10) : undefined}
+                        onChange={(e) => {
+                          const selected = e.target.value;
+                          if (insertDateBounds) {
+                            const min = insertDateBounds.minDate.substring(0, 10);
+                            const max = insertDateBounds.maxDate.substring(0, 10);
+                            if (selected < min || selected > max) return;
+                          }
+                          setScheduleForm((prev) => ({ ...prev, startDate: selected }));
+                        }}
                         className={`w-full px-3 py-2 border rounded-lg ${
                           isDarkMode
                             ? "bg-gray-700 border-gray-600 text-white"
@@ -1333,13 +1405,23 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                       <input
                         type="date"
                         value={scheduleForm.endDate}
-                        onChange={(e) =>
-                          setScheduleForm((prev) => ({ ...prev, endDate: e.target.value }))
-                        }
+                        min={insertDateBounds?.minDate?.substring(0, 10) || undefined}
+                        max={insertDateBounds?.maxDate?.substring(0, 10) || undefined}
+                        readOnly={!!insertDateBounds}
+                        tabIndex={insertDateBounds ? -1 : undefined}
+                        onChange={(e) => {
+                          if (!insertDateBounds) {
+                            setScheduleForm((prev) => ({ ...prev, endDate: e.target.value }));
+                          }
+                        }}
                         className={`w-full px-3 py-2 border rounded-lg ${
-                          isDarkMode
-                            ? "bg-gray-700 border-gray-600 text-white"
-                            : "bg-white border-gray-300 text-black"
+                          insertDateBounds
+                            ? isDarkMode
+                              ? "bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed"
+                              : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                            : isDarkMode
+                              ? "bg-gray-700 border-gray-600 text-white"
+                              : "bg-white border-gray-300 text-black"
                         }`}
                       />
                     </div>

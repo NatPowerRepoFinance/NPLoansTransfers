@@ -441,6 +441,7 @@ export default function Home() {
   const [showScheduleRowModal, setShowScheduleRowModal] = useState(false);
   const [editingScheduleRowId, setEditingScheduleRowId] = useState<string | null>(null);
   const [editingScheduleRowIndex, setEditingScheduleRowIndex] = useState<number | null>(null);
+  const [insertDateBounds, setInsertDateBounds] = useState<{ minDate: string; maxDate: string; afterRowIndex: number; parentRowId: string } | null>(null);
    const [isImportScheduleModalOpen, setIsImportScheduleModalOpen] = useState(false)
   const [importScheduleMode, setImportScheduleMode] = useState<'overwrite' | 'extend'>('extend')
   const [importCompanyMode, setImportCompanyMode] = useState<'overwrite' | 'extend'>('extend')
@@ -1505,6 +1506,14 @@ export default function Home() {
     cumulativeTotal: number;
     total: number;
     fees: number;
+    parentRowId?: string;
+    isChild?: boolean;
+    childIndex?: number;
+    parentScheduleIndex?: number;
+    hasChildren?: boolean;
+    isExpanded?: boolean;
+    nestingLevel?: number;
+    indexPath?: string;
   };
 
   const availableLenderBankAccounts = useMemo(() => {
@@ -1565,6 +1574,7 @@ export default function Home() {
     }
     setEditingScheduleRowId(null);
     setEditingScheduleRowIndex(null);
+    setInsertDateBounds(null);
     resetScheduleForm();
     setShowScheduleRowModal(true);
   };
@@ -1573,6 +1583,7 @@ export default function Home() {
     setShowScheduleRowModal(false);
     setEditingScheduleRowId(null);
     setEditingScheduleRowIndex(null);
+    setInsertDateBounds(null);
     resetScheduleForm();
   };
 
@@ -1599,6 +1610,17 @@ export default function Home() {
     if (scheduleForm.endDate < scheduleForm.startDate) {
       toast.error("End Date cannot be earlier than Start Date.");
       return;
+    }
+
+    if (insertDateBounds) {
+      if (scheduleForm.startDate < insertDateBounds.minDate || scheduleForm.startDate > insertDateBounds.maxDate) {
+        toast.error(`Start Date must be between ${formatDate(insertDateBounds.minDate)} and ${formatDate(insertDateBounds.maxDate)}.`);
+        return;
+      }
+      if (scheduleForm.endDate < insertDateBounds.minDate || scheduleForm.endDate > insertDateBounds.maxDate) {
+        toast.error(`End Date must be between ${formatDate(insertDateBounds.minDate)} and ${formatDate(insertDateBounds.maxDate)}.`);
+        return;
+      }
     }
 
     const annualInterestRate = Number(scheduleForm.annualInterestRate);
@@ -1650,7 +1672,22 @@ export default function Home() {
           },
         );
       } else {
-        await createLoanFacilityScheduleRow(poAccessToken, loanFacilityId, payload);
+        const createPayload = insertDateBounds
+          ? { ...payload, rowIndex: insertDateBounds.afterRowIndex + 1 }
+          : payload;
+        await createLoanFacilityScheduleRow(poAccessToken, loanFacilityId, createPayload);
+
+        const freshSchedule = await getLoanFacilitySchedule(poAccessToken, loanFacilityId);
+
+        setLoans((prevLoans) =>
+          prevLoans.map((loan) =>
+            String(loan.id) === loanFacilityId ? { ...loan, schedule: freshSchedule } : loan,
+          ),
+        );
+
+        closeScheduleRowModal();
+        toast.success("Schedule row added successfully.");
+        return;
       }
 
       const updatedSchedule = await getLoanFacilitySchedule(poAccessToken, loanFacilityId);
@@ -1661,11 +1698,7 @@ export default function Home() {
       );
 
       closeScheduleRowModal();
-      toast.success(
-        editingScheduleRowId
-          ? "Schedule row updated successfully."
-          : "Schedule row added successfully.",
-      );
+      toast.success("Schedule row updated successfully.");
     } catch (error) {
       toast.error(
         error instanceof Error
@@ -1797,7 +1830,15 @@ export default function Home() {
     );
 
     const scheduleRows = Array.isArray(currentLoan?.schedule)
-      ? currentLoan.schedule
+      ? [...currentLoan.schedule].sort((a: any, b: any) => {
+          const indexA = Number(a?.rowIndex ?? a?.scheduleIndex ?? 0);
+          const indexB = Number(b?.rowIndex ?? b?.scheduleIndex ?? 0);
+          if (indexA !== indexB) return indexA - indexB;
+          // Secondary sort by startDate for rows with same rowIndex
+          const dateA = String(a?.startDate ?? "");
+          const dateB = String(b?.startDate ?? "");
+          return dateA.localeCompare(dateB);
+        })
       : [];
 
     let cumulativePrincipal = 0;
@@ -1867,9 +1908,18 @@ export default function Home() {
     });
   }, [loans, selectedLoanId]);
 
+  const displayRows = useMemo<DrawDownRow[]>(() => {
+    return calculatedRows;
+  }, [calculatedRows]);
+
   const scheduleColumnDefs = useMemo<ColDef<DrawDownRow>[]>(() => {
     const columns: ColDef<DrawDownRow>[] = [
-      { field: "scheduleIndex", headerName: "Index", minWidth: 90, pinned: "left" },
+      {
+        field: "scheduleIndex",
+        headerName: "Index",
+        minWidth: 80,
+        pinned: "left",
+      },
       {
         field: "startDate",
         headerName: "Start Date",
@@ -1955,7 +2005,7 @@ export default function Home() {
     if (!isViewer) {
       columns.push({
         headerName: "Actions",
-        minWidth: 160,
+        minWidth: 220,
         cellRenderer: (params: { data?: DrawDownRow }) => {
           const row = params.data;
           if (!row) return null;
@@ -1973,6 +2023,19 @@ export default function Home() {
                   }`}
                 >
                   Edit
+                </button>
+              )}
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => insertScheduleRow(row)}
+                  className={`px-2 py-1 rounded text-xs transition ${
+                    isDarkMode
+                      ? "bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300"
+                      : "bg-emerald-100 hover:bg-emerald-200 text-emerald-700"
+                  }`}
+                >
+                  Insert
                 </button>
               )}
               {canDelete && (
@@ -2013,6 +2076,47 @@ export default function Home() {
       drawDown: String(row.drawDown ?? 0),
       repayment: String(row.repayment ?? 0),
       fees: String(row.fees ?? 0),
+    });
+    setShowScheduleRowModal(true);
+  };
+
+  const insertScheduleRow = (row: DrawDownRow) => {
+    if (!canEdit) {
+      toast.error("Access denied: editor role is required for this action");
+      return;
+    }
+    if (!selectedLoanFacility) {
+      toast.error("Please select a Loan Facility first.");
+      return;
+    }
+    setEditingScheduleRowId(null);
+    setEditingScheduleRowIndex(null);
+
+    // Normalize dates to YYYY-MM-DD for min/max to work in Chrome's date picker
+    const normalizeDate = (d: string) => d ? d.substring(0, 10) : "";
+    const rowStartDate = normalizeDate(row.startDate);
+    const rowEndDate = normalizeDate(row.endDate);
+
+    // Compute next day after row's start date
+    const nextDay = new Date(rowStartDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+    const nextDayStr = nextDay.toISOString().split('T')[0];
+
+    setInsertDateBounds({
+      minDate: nextDayStr,
+      maxDate: rowEndDate,
+      afterRowIndex: row.scheduleIndex,
+      parentRowId: row.id,
+    });
+    setScheduleForm({
+      startDate: nextDayStr,
+      endDate: rowEndDate,
+      lenderBankAccount: row.lenderBankAccount,
+      borrowerBankAccount: row.borrowerBankAccount,
+      annualInterestRate: String(row.annualInterestRate ?? 0),
+      drawDown: "0",
+      repayment: "0",
+      fees: "0",
     });
     setShowScheduleRowModal(true);
   };
@@ -3020,7 +3124,7 @@ export default function Home() {
             loanFacilityFieldValue={loanFacilityFieldValue}
             handleOpenAddScheduleRowModal={handleOpenAddScheduleRowModal}
             openImportScheduleModal={openImportScheduleModal}
-            calculatedRows={calculatedRows}
+            calculatedRows={displayRows}
             scheduleColumnDefs={scheduleColumnDefs}
             isImportScheduleModalOpen={isImportScheduleModalOpen}
             downloadScheduleImportTemplate={downloadScheduleImportTemplate}
@@ -3036,9 +3140,10 @@ export default function Home() {
             showScheduleRowModal={showScheduleRowModal}
             onCloseScheduleRowModal={closeScheduleRowModal}
             scheduleRowModalTitle={
-              editingScheduleRowId ? "Edit Schedule Row" : "Add Schedule Row"
+              editingScheduleRowId ? "Edit Schedule Row" : insertDateBounds ? "Insert Schedule Row" : "Add Schedule Row"
             }
-            scheduleRowSubmitLabel={editingScheduleRowId ? "Update Row" : "Save Row"}
+            scheduleRowSubmitLabel={editingScheduleRowId ? "Update Row" : insertDateBounds ? "Insert Row" : "Save Row"}
+            insertDateBounds={insertDateBounds}
             scheduleForm={scheduleForm}
             setScheduleForm={setScheduleForm}
             availableLenderBankAccounts={availableLenderBankAccounts}
