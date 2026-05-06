@@ -1672,10 +1672,40 @@ export default function Home() {
           },
         );
       } else {
-        const createPayload = insertDateBounds
-          ? { ...payload, rowIndex: insertDateBounds.afterRowIndex + 1 }
-          : payload;
+        // rowIndex for the new row is right after the row where insert was triggered
+        const insertRowIndex = insertDateBounds
+          ? insertDateBounds.afterRowIndex + 1
+          : (Array.isArray(selectedLoanFacility?.schedule) ? selectedLoanFacility.schedule.length : 0) + 1;
+
+        const createPayload = { ...payload, rowIndex: insertRowIndex };
         await createLoanFacilityScheduleRow(poAccessToken, loanFacilityId, createPayload);
+
+        // Update the original row's end date to the inserted row's start date
+        if (insertDateBounds?.parentRowId) {
+          const currentSchedule = Array.isArray(selectedLoanFacility?.schedule)
+            ? selectedLoanFacility.schedule
+            : [];
+          const originalRow = currentSchedule
+            .find((r: any) => String(r?.id) === String(insertDateBounds.parentRowId));
+          if (originalRow) {
+            await updateLoanFacilityScheduleRow(
+              poAccessToken,
+              loanFacilityId,
+              String(insertDateBounds.parentRowId),
+              {
+                startDate: String(originalRow.startDate ?? ""),
+                endDate: scheduleForm.startDate,
+                lenderBankAccount: String(originalRow.lenderBankAccount ?? ""),
+                borrowerBankAccount: String(originalRow.borrowerBankAccount ?? ""),
+                annualInterestRatePct: Number(originalRow.annualInterestRatePct ?? originalRow.annualInterestRate ?? 0),
+                drawDown: Number(originalRow.drawDown ?? 0),
+                repayment: Number(originalRow.repayment ?? 0),
+                fees: Number(originalRow.fees ?? 0),
+                rowIndex: insertDateBounds.afterRowIndex,
+              },
+            );
+          }
+        }
 
         const freshSchedule = await getLoanFacilitySchedule(poAccessToken, loanFacilityId);
 
@@ -1700,12 +1730,11 @@ export default function Home() {
       closeScheduleRowModal();
       toast.success("Schedule row updated successfully.");
     } catch (error) {
+      console.error("Schedule row error:", error);
       toast.error(
-        error instanceof Error
-          ? error.message
-          : editingScheduleRowId
-          ? "Failed to update schedule row."
-          : "Failed to add schedule row."
+        editingScheduleRowId
+          ? "Something went wrong while updating the schedule row."
+          : "Something went wrong while adding the schedule row."
       );
     }
   };
