@@ -1688,13 +1688,18 @@ export default function Home() {
           const originalRow = currentSchedule
             .find((r: any) => String(r?.id) === String(insertDateBounds.parentRowId));
           if (originalRow) {
+            // Set original row's endDate to inserted row's startDate - 1 day
+            const insertedStart = new Date(scheduleForm.startDate);
+            insertedStart.setDate(insertedStart.getDate() - 1);
+            const newEndDate = insertedStart.toISOString().substring(0, 10);
+
             await updateLoanFacilityScheduleRow(
               poAccessToken,
               loanFacilityId,
               String(insertDateBounds.parentRowId),
               {
                 startDate: String(originalRow.startDate ?? ""),
-                endDate: scheduleForm.startDate,
+                endDate: newEndDate,
                 lenderBankAccount: String(originalRow.lenderBankAccount ?? ""),
                 borrowerBankAccount: String(originalRow.borrowerBankAccount ?? ""),
                 annualInterestRatePct: Number(originalRow.annualInterestRatePct ?? originalRow.annualInterestRate ?? 0),
