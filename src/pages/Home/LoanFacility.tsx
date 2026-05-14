@@ -227,6 +227,7 @@ type LoanFacilityTabProps = {
   availableBorrowerBankAccounts: string[];
   handleSaveScheduleRow: () => void;
   insertDateBounds: { minDate: string; maxDate: string; afterRowIndex: number; parentRowId: string } | null;
+  editingScheduleRowId: string | null;
 };
 
 export default function LoanFacilityTab(props: LoanFacilityTabProps) {
@@ -284,7 +285,32 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     availableBorrowerBankAccounts,
     handleSaveScheduleRow,
     insertDateBounds,
+    editingScheduleRowId,
   } = props;
+
+  // Outstanding principal available before the row currently being
+  // added/edited/inserted. Repayments are bounded by this outstanding amount
+  // plus any new draw down on the same row, not just by the row's own draw down.
+  const outstandingPrincipalBeforeRow = (() => {
+    const rows = (calculatedRows ?? []) as Array<{
+      id?: unknown;
+      cumulativePrincipal?: unknown;
+    }>;
+    if (rows.length === 0) return 0;
+    const cumAt = (i: number) => Number((rows[i] as any)?.cumulativePrincipal ?? 0);
+
+    if (editingScheduleRowId) {
+      const idx = rows.findIndex((r) => String(r?.id) === String(editingScheduleRowId));
+      if (idx <= 0) return 0;
+      return cumAt(idx - 1);
+    }
+    if (insertDateBounds?.parentRowId) {
+      const idx = rows.findIndex((r) => String(r?.id) === String(insertDateBounds.parentRowId));
+      if (idx < 0) return cumAt(rows.length - 1);
+      return cumAt(idx);
+    }
+    return cumAt(rows.length - 1);
+  })();
 
   const isScheduleRowSubmitDisabled = (() => {
     const annualInterestRate = Number(scheduleForm.annualInterestRate);
@@ -302,7 +328,8 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
       Number.isNaN(value),
     );
 
-    const repaymentWithinDrawDown = repayment <= drawDown;
+    const maxAllowedRepayment = outstandingPrincipalBeforeRow + (Number.isFinite(drawDown) ? drawDown : 0);
+    const repaymentWithinDrawDown = repayment <= maxAllowedRepayment;
     const endDateNotEarlierThanStartDate =
       !scheduleForm.startDate ||
       !scheduleForm.endDate ||
@@ -338,8 +365,9 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     const drawDown = Number(scheduleForm.drawDown);
     const repayment = Number(scheduleForm.repayment);
     const hasValidNumbers = ![drawDown, repayment].some((value) => Number.isNaN(value));
-    if (hasValidNumbers && repayment > drawDown) {
-      return "Repayment cannot be greater than Draw Down.";
+    const maxAllowedRepayment = outstandingPrincipalBeforeRow + (Number.isFinite(drawDown) ? drawDown : 0);
+    if (hasValidNumbers && repayment > maxAllowedRepayment) {
+      return `Repayment cannot exceed the outstanding principal (${maxAllowedRepayment.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}).`;
     }
 
     if (

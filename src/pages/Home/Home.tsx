@@ -33,6 +33,7 @@ import autoTable from "jspdf-autotable";
 import { mockApi } from '../../services/mockApi';
 import type { MockUser } from '../../types';
 import LoanFacilityTab from "./LoanFacility";
+import HelpTab from "./Help";
 import ReportTab from "./Report";
 import {
   createCountry,
@@ -361,7 +362,7 @@ export default function Home() {
   const [showOnlyActiveLoanFacilities, setShowOnlyActiveLoanFacilities] = useState(false);
   const [showLoanFacilityModal, setShowLoanFacilityModal] = useState(false);
   const [loanForm, setLoanForm] = useState(emptyLoanForm);
-  const [activeTab, setActiveTab] = useState<"loan-facility" | "report" | "admin">("loan-facility");
+  const [activeTab, setActiveTab] = useState<"loan-facility" | "report" | "admin" | "help">("loan-facility");
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const [companies, setCompanies] = useState<Company[]>([
@@ -620,6 +621,12 @@ export default function Home() {
     }
 
     return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
+  useEffect(() => {
+    const openHelp = () => setActiveTab("help");
+    window.addEventListener("open-help-tab", openHelp);
+    return () => window.removeEventListener("open-help-tab", openHelp);
   }, []);
 
   const { dialog: dialog } = useConfirmDialog({
@@ -3183,6 +3190,7 @@ export default function Home() {
             availableLenderBankAccounts={availableLenderBankAccounts}
             availableBorrowerBankAccounts={availableBorrowerBankAccounts}
             handleSaveScheduleRow={handleSaveScheduleRow}
+            editingScheduleRowId={editingScheduleRowId}
           />
         )}
 
@@ -3193,6 +3201,9 @@ export default function Home() {
             companies={companies}
           />
         )}
+
+        {/* Help Tab */}
+        {activeTab === "help" && <HelpTab isDarkMode={isDarkMode} />}
 
         {/* Admin Tab */}
         {activeTab === "admin" && isAdminUser && (

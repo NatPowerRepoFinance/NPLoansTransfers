@@ -1,6 +1,6 @@
 import { Menu, Transition } from "@headlessui/react";
 // import { BellIcon } from "@heroicons/react/16/solid";
-import { ChevronDownIcon } from "@heroicons/react/24/outline";
+import { ChevronDownIcon, QuestionMarkCircleIcon } from "@heroicons/react/24/outline";
 import { Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/authProvider";
@@ -50,6 +50,15 @@ export default function UserSection() {
 
 	return (
 		<div className="flex items-center">
+			<button
+				type="button"
+				onClick={() => window.dispatchEvent(new CustomEvent("open-help-tab"))}
+				className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 transition-colors"
+				title="Help & Documentation"
+				aria-label="Open help and documentation"
+			>
+				<QuestionMarkCircleIcon width={22} />
+			</button>
 			{/* <div className="relative">
 				<ConditionalNavLink />
 			</div> */}
