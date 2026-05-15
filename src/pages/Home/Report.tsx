@@ -687,9 +687,9 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
             <thead className={`${isDarkMode ? "bg-gray-700/80" : "bg-slate-100"}`}>
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-semibold">Country</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">Cumulative Interest</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">Cumulative Principal</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">Total</th>
+                <th className="px-6 py-3 text-right text-sm font-semibold">Cumulative Interest</th>
+                <th className="px-6 py-3 text-right text-sm font-semibold">Cumulative Principal</th>
+                <th className="px-6 py-3 text-right text-sm font-semibold">Total</th>
               </tr>
             </thead>
             <tbody>
@@ -711,9 +711,9 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
                     className={`border-t transition-colors ${isDarkMode ? "border-gray-700 hover:bg-white/5" : "border-gray-200 hover:bg-slate-50"}`}
                   >
                     <td className="px-6 py-4 text-sm">{row.country}</td>
-                    <td className="px-6 py-4 text-sm">{formatCurrency(row.cumulativeInterest)}</td>
-                    <td className="px-6 py-4 text-sm">{formatCurrency(row.cumulativePrincipal)}</td>
-                    <td className="px-6 py-4 text-sm">{formatCurrency(row.total)}</td>
+                    <td className="px-6 py-4 text-sm text-right">{formatCurrency(row.cumulativeInterest)}</td>
+                    <td className="px-6 py-4 text-sm text-right">{formatCurrency(row.cumulativePrincipal)}</td>
+                    <td className="px-6 py-4 text-sm text-right">{formatCurrency(row.total)}</td>
                   </tr>
                 ))
               )}
@@ -800,9 +800,9 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
                   <th className="px-6 py-3 text-left text-sm font-semibold">Loan Facility</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold">Lender</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold">Borrower</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">Cumulative Principal</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">Cumulative Interest</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">Total</th>
+                  <th className="px-6 py-3 text-right text-sm font-semibold">Cumulative Principal</th>
+                  <th className="px-6 py-3 text-right text-sm font-semibold">Cumulative Interest</th>
+                  <th className="px-6 py-3 text-right text-sm font-semibold">Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -827,9 +827,9 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
                       <td className="px-6 py-4 text-sm">{row.loanFacility}</td>
                       <td className="px-6 py-4 text-sm">{row.lender}</td>
                       <td className="px-6 py-4 text-sm">{row.borrower}</td>
-                      <td className="px-6 py-4 text-sm">{formatCurrency(row.cumulativePrincipal)}</td>
-                      <td className="px-6 py-4 text-sm">{formatCurrency(row.cumulativeInterest)}</td>
-                      <td className="px-6 py-4 text-sm">{formatCurrency(row.total)}</td>
+                      <td className="px-6 py-4 text-sm text-right">{formatCurrency(row.cumulativePrincipal)}</td>
+                      <td className="px-6 py-4 text-sm text-right">{formatCurrency(row.cumulativeInterest)}</td>
+                      <td className="px-6 py-4 text-sm text-right">{formatCurrency(row.total)}</td>
                     </tr>
                   ))
                 )}
