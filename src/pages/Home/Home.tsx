@@ -2007,7 +2007,11 @@ export default function Home() {
         field: "principal",
         headerName: "Principal",
         minWidth: 120,
-        valueFormatter: (params) => formatCurrency(Number(params.value ?? 0)),
+        valueFormatter: (params) => {
+          const value = Number(params.value ?? 0);
+          const formatted = formatCurrency(Math.abs(value));
+          return value < 0 ? `(${formatted})` : formatted;
+        },
         cellStyle: { textAlign: "right" },
         headerClass: "ag-right-aligned-header",
       },
