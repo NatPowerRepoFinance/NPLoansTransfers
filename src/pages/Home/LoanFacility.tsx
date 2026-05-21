@@ -312,6 +312,52 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     return cumAt(rows.length - 1);
   })();
 
+  // Date validation: detect overlaps and gaps in top-level schedule rows.
+  const scheduleDateIssues = (() => {
+    const rows = (calculatedRows ?? []) as Array<{
+      id?: unknown;
+      startDate?: unknown;
+      endDate?: unknown;
+      isChild?: unknown;
+    }>;
+    const topRows = rows
+      .filter((r) => !r?.isChild)
+      .map((r) => ({
+        id: String(r?.id ?? ""),
+        start: String(r?.startDate ?? "").substring(0, 10),
+        end: String(r?.endDate ?? "").substring(0, 10),
+      }))
+      .filter((r) => r.start && r.end)
+      .sort((a, b) => a.start.localeCompare(b.start));
+
+    const overlapIds = new Set<string>();
+    const gapIds = new Set<string>();
+    let hasOverlap = false;
+    let hasGap = false;
+
+    const addOneDay = (iso: string) => {
+      const d = new Date(`${iso}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + 1);
+      return d.toISOString().substring(0, 10);
+    };
+
+    for (let i = 1; i < topRows.length; i += 1) {
+      const prev = topRows[i - 1];
+      const curr = topRows[i];
+      if (curr.start <= prev.end) {
+        hasOverlap = true;
+        overlapIds.add(prev.id);
+        overlapIds.add(curr.id);
+      } else if (curr.start > addOneDay(prev.end)) {
+        hasGap = true;
+        gapIds.add(prev.id);
+        gapIds.add(curr.id);
+      }
+    }
+
+    return { hasOverlap, hasGap, overlapIds, gapIds };
+  })();
+
   const isScheduleRowSubmitDisabled = (() => {
     const annualInterestRate = Number(scheduleForm.annualInterestRate);
     const drawDown = Number(scheduleForm.drawDown);
@@ -1189,6 +1235,36 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                 </div>
               </div>
               <div className="drawdown-schedule-scroll w-full max-w-full overflow-x-auto overflow-y-hidden rounded-xl shadow-sm">
+                {(scheduleDateIssues.hasOverlap || scheduleDateIssues.hasGap) && (
+                  <div className="mb-3 space-y-2">
+                    {scheduleDateIssues.hasOverlap && (
+                      <div
+                        className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs font-medium ${
+                          isDarkMode
+                            ? "bg-rose-500/10 border-rose-400/40 text-rose-200"
+                            : "bg-rose-50 border-rose-200 text-rose-700"
+                        }`}
+                        role="alert"
+                      >
+                        <span className="font-bold">Warning:</span>
+                        <span>There are overlapping dates in the loan table rows.</span>
+                      </div>
+                    )}
+                    {scheduleDateIssues.hasGap && (
+                      <div
+                        className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs font-medium ${
+                          isDarkMode
+                            ? "bg-amber-500/10 border-amber-400/40 text-amber-200"
+                            : "bg-amber-50 border-amber-200 text-amber-800"
+                        }`}
+                        role="alert"
+                      >
+                        <span className="font-bold">Warning:</span>
+                        <span>There are gaps in the dates from the first to last date.</span>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div
                   className={`schedule-grid ${isDarkMode ? "ag-theme-alpine-dark" : "ag-theme-alpine"}`}
                   style={{ width: "100%", height: 360 }}
@@ -1209,6 +1285,30 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                     suppressCellFocus
                     overlayNoRowsTemplate="No draw down schedule rows available."
                     getRowStyle={(params: any) => {
+                      const rowId = String(params.data?.id ?? "");
+                      const isOverlap = scheduleDateIssues.overlapIds.has(rowId);
+                      const isGap = scheduleDateIssues.gapIds.has(rowId);
+
+                      if (isOverlap) {
+                        return {
+                          backgroundColor: isDarkMode
+                            ? "rgba(244, 63, 94, 0.18)"
+                            : "rgba(254, 226, 226, 0.85)",
+                          borderLeft: isDarkMode
+                            ? "3px solid rgba(244, 63, 94, 0.7)"
+                            : "3px solid rgba(220, 38, 38, 0.6)",
+                        };
+                      }
+                      if (isGap) {
+                        return {
+                          backgroundColor: isDarkMode
+                            ? "rgba(245, 158, 11, 0.15)"
+                            : "rgba(254, 243, 199, 0.85)",
+                          borderLeft: isDarkMode
+                            ? "3px solid rgba(245, 158, 11, 0.7)"
+                            : "3px solid rgba(217, 119, 6, 0.6)",
+                        };
+                      }
                       if (params.data?.isChild) {
                         const level = params.data.nestingLevel ?? 1;
                         const opacity = Math.min(0.08 + (level - 1) * 0.04, 0.2);

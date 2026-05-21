@@ -1743,11 +1743,19 @@ export default function Home() {
       toast.success("Schedule row updated successfully.");
     } catch (error) {
       console.error("Schedule row error:", error);
-      toast.error(
-        editingScheduleRowId
-          ? "Something went wrong while updating the schedule row."
-          : "Something went wrong while adding the schedule row."
-      );
+      const rawMessage = error instanceof Error ? error.message : String(error ?? "");
+      const isOverlap = /startDate must be after the previous row startDate/i.test(rawMessage);
+      if (isOverlap) {
+        toast.error(
+          "Cannot add row: the dates overlap with an existing schedule row. Please change the dates and try again."
+        );
+      } else {
+        toast.error(
+          editingScheduleRowId
+            ? "Something went wrong while updating the schedule row."
+            : "Something went wrong while adding the schedule row."
+        );
+      }
     }
   };
 
