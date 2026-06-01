@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 import {
   BookOpenIcon,
   BuildingOffice2Icon,
@@ -13,15 +13,10 @@ import {
   ChartBarIcon,
   ShieldCheckIcon,
   QuestionMarkCircleIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  XMarkIcon,
-  ArrowRightIcon,
-  ArrowLeftIcon,
-  CheckCircleIcon,
-  MagnifyingGlassPlusIcon,
-  RocketLaunchIcon,
 } from "@heroicons/react/24/outline";
+
+import { HelpPanel, HelpImage, FAQ } from "@/components/HelpModule";
+import type { HelpSection, QuickStartStep } from "@/components/HelpModule";
 
 import imgSignIn from "@/assets/help/sign-in.png";
 import imgLoanFacility from "@/assets/help/loan-facility-tab.png";
@@ -38,78 +33,7 @@ type HelpTabProps = {
   isDarkMode: boolean;
 };
 
-type HelpSection = {
-  id: string;
-  title: string;
-  icon: React.ComponentType<{ className?: string }>;
-  summary: string;
-  body: React.ReactNode;
-};
-
-/* ─── Lightbox component for zoomable images ─── */
-function HelpImage({
-  src,
-  alt,
-  className,
-  caption,
-}: {
-  src: string;
-  alt: string;
-  className: string;
-  caption?: string;
-}) {
-  const [isZoomed, setIsZoomed] = useState(false);
-
-  return (
-    <>
-      <figure className="group relative my-3">
-        <div
-          className={`relative cursor-zoom-in overflow-hidden ${className}`}
-          onClick={() => setIsZoomed(true)}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => e.key === "Enter" && setIsZoomed(true)}
-        >
-          <img src={src} alt={alt} className="w-full h-auto" />
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-200 flex items-center justify-center">
-            <MagnifyingGlassPlusIcon className="w-8 h-8 text-white opacity-0 group-hover:opacity-80 transition-opacity drop-shadow-lg" />
-          </div>
-        </div>
-        {caption && (
-          <figcaption className="mt-1.5 text-xs text-center opacity-60 italic">
-            {caption}
-          </figcaption>
-        )}
-      </figure>
-
-      {/* Lightbox modal */}
-      {isZoomed && (
-        <div
-          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-          onClick={() => setIsZoomed(false)}
-          style={{ animation: "helpFadeIn 150ms ease-out" }}
-        >
-          <button
-            onClick={() => setIsZoomed(false)}
-            className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-          >
-            <XMarkIcon className="w-6 h-6" />
-          </button>
-          <img
-            src={src}
-            alt={alt}
-            className="max-w-[92vw] max-h-[90vh] rounded-lg shadow-2xl object-contain"
-            style={{ animation: "helpScaleIn 200ms ease-out" }}
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
-    </>
-  );
-}
-
-/* ─── Quick Start Wizard ─── */
-const QUICK_START_STEPS = [
+const QUICK_START_STEPS: QuickStartStep[] = [
   {
     title: "Sign In",
     desc: "Authenticate with your Microsoft account to access the system.",
@@ -137,276 +61,8 @@ const QUICK_START_STEPS = [
   },
 ];
 
-function QuickStartWizard({ isDarkMode }: { isDarkMode: boolean }) {
-  const [step, setStep] = useState(0);
-  const [completed, setCompleted] = useState<Set<number>>(new Set());
-  const [collapsed, setCollapsed] = useState(false);
-
-  const cardBg = isDarkMode ? "bg-gray-800/80 border-gray-700" : "bg-white border-gray-200";
-  const stepActive = isDarkMode
-    ? "bg-indigo-500/20 border-indigo-400 text-indigo-300"
-    : "bg-indigo-50 border-indigo-500 text-indigo-700";
-  const stepDone = isDarkMode
-    ? "bg-green-500/15 border-green-500/50 text-green-400"
-    : "bg-green-50 border-green-500 text-green-700";
-  const stepInactive = isDarkMode
-    ? "bg-gray-700/50 border-gray-600 text-gray-400"
-    : "bg-gray-50 border-gray-300 text-gray-500";
-
-  const markDone = () => {
-    setCompleted((prev) => new Set([...prev, step]));
-    if (step < QUICK_START_STEPS.length - 1) setStep(step + 1);
-  };
-
-  return (
-    <div className={`rounded-xl border p-4 sm:p-5 ${cardBg} mb-5`}>
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        className="w-full flex items-center justify-between"
-      >
-        <div className="flex items-center gap-2">
-          <RocketLaunchIcon className={`w-5 h-5 ${isDarkMode ? "text-indigo-400" : "text-indigo-600"}`} />
-          <h3 className="font-semibold text-sm">Quick Start Guide</h3>
-          <span className={`text-xs ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>
-            {completed.size}/{QUICK_START_STEPS.length} completed
-          </span>
-        </div>
-        <ChevronDownIcon
-          className={`w-4 h-4 transition-transform duration-200 ${collapsed ? "-rotate-90" : ""} ${
-            isDarkMode ? "text-gray-500" : "text-gray-400"
-          }`}
-        />
-      </button>
-
-      <div
-        className={`overflow-hidden transition-all duration-300 ease-in-out ${
-          collapsed ? "max-h-0 opacity-0 mt-0" : "max-h-screen opacity-100 mt-4"
-        }`}
-      >
-        {/* Stepper dots */}
-        <div className="flex items-center gap-1 mb-4 flex-wrap">
-          {QUICK_START_STEPS.map((s, i) => (
-            <button
-              key={i}
-              onClick={() => setStep(i)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all duration-200 ${
-                i === step ? stepActive : completed.has(i) ? stepDone : stepInactive
-              }`}
-            >
-              {completed.has(i) ? (
-                <CheckCircleIcon className="w-3.5 h-3.5" />
-              ) : (
-                <span className="w-3.5 h-3.5 flex items-center justify-center text-[10px] font-bold">
-                  {i + 1}
-                </span>
-              )}
-              <span className="hidden sm:inline">{s.title}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Step content */}
-        <div className="flex flex-col sm:flex-row gap-4 items-start">
-          <div
-            className={`w-full sm:w-2/5 rounded-lg border ${
-              isDarkMode ? "border-gray-600" : "border-gray-200"
-            }`}
-          >
-            <img
-              src={QUICK_START_STEPS[step].img}
-              alt={QUICK_START_STEPS[step].title}
-              className="w-full h-auto rounded-lg"
-            />
-          </div>
-          <div className="flex-1 space-y-3">
-            <div>
-              <p
-                className={`text-xs font-semibold uppercase tracking-wide ${
-                  isDarkMode ? "text-indigo-400" : "text-indigo-600"
-                }`}
-              >
-                Step {step + 1} of {QUICK_START_STEPS.length}
-              </p>
-              <h4 className="font-semibold text-lg mt-0.5">{QUICK_START_STEPS[step].title}</h4>
-              <p className={`text-sm mt-1 ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
-                {QUICK_START_STEPS[step].desc}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 pt-2">
-              <button
-                disabled={step === 0}
-                onClick={() => setStep(step - 1)}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                  step === 0
-                    ? "opacity-40 cursor-not-allowed"
-                    : isDarkMode
-                    ? "border-gray-600 hover:bg-gray-700"
-                    : "border-gray-300 hover:bg-gray-100"
-                }`}
-              >
-                <ArrowLeftIcon className="w-3 h-3" /> Back
-              </button>
-              <button
-                onClick={markDone}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-linear-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white transition-all shadow-sm"
-              >
-                {step === QUICK_START_STEPS.length - 1 ? (
-                  "Finish"
-                ) : (
-                  <>
-                    Got it <ArrowRightIcon className="w-3 h-3" />
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Progress bar */}
-        <div
-          className={`mt-4 h-1.5 rounded-full overflow-hidden ${
-            isDarkMode ? "bg-gray-700" : "bg-gray-200"
-          }`}
-        >
-          <div
-            className="h-full bg-linear-to-r from-indigo-500 to-blue-500 rounded-full transition-all duration-500 ease-out"
-            style={{ width: `${(completed.size / QUICK_START_STEPS.length) * 100}%` }}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Table of Contents (mini nav) ─── */
-function TableOfContents({
-  sections,
-  openIds,
-  onJump,
-  isDarkMode,
-}: {
-  sections: HelpSection[];
-  openIds: Set<string>;
-  onJump: (id: string) => void;
-  isDarkMode: boolean;
-}) {
-  return (
-    <nav
-      className={`hidden lg:block sticky top-4 w-48 shrink-0 rounded-lg border p-3 text-xs space-y-1 ${
-        isDarkMode ? "bg-gray-800/50 border-gray-700" : "bg-gray-50 border-gray-200"
-      }`}
-    >
-      <p className={`font-semibold mb-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-        On this page
-      </p>
-      {sections.map((s) => {
-        const isActive = openIds.has(s.id);
-        return (
-          <button
-            key={s.id}
-            onClick={() => onJump(s.id)}
-            className={`block w-full text-left px-2 py-1 rounded transition-colors truncate ${
-              isActive
-                ? isDarkMode
-                  ? "bg-indigo-500/15 text-indigo-300 font-medium"
-                  : "bg-indigo-50 text-indigo-700 font-medium"
-                : isDarkMode
-                ? "text-gray-400 hover:text-gray-200 hover:bg-gray-700/50"
-                : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
-            }`}
-            dangerouslySetInnerHTML={{ __html: s.title }}
-          />
-        );
-      })}
-    </nav>
-  );
-}
-
-/* ─── Interactive FAQ accordion ─── */
-function FAQ({
-  isDarkMode,
-  items,
-}: {
-  isDarkMode: boolean;
-  items: { q: string; a: string }[];
-}) {
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
-
-  return (
-    <div className="space-y-2">
-      {items.map((item, i) => {
-        const isOpen = openIndex === i;
-        return (
-          <div
-            key={i}
-            className={`rounded-lg border transition-all duration-200 ${
-              isDarkMode ? "border-gray-700" : "border-gray-200"
-            } ${isOpen ? "shadow-sm" : ""}`}
-          >
-            <button
-              onClick={() => setOpenIndex(isOpen ? null : i)}
-              className={`w-full flex items-center justify-between text-left px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
-                isDarkMode
-                  ? "hover:bg-gray-800/50 text-indigo-300"
-                  : "hover:bg-gray-50 text-indigo-700"
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <QuestionMarkCircleIcon className="w-4 h-4 shrink-0" />
-                {item.q}
-              </span>
-              <ChevronDownIcon
-                className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${
-                  isOpen ? "rotate-0" : "-rotate-90"
-                }`}
-              />
-            </button>
-            <div
-              className={`overflow-hidden transition-all duration-200 ${
-                isOpen ? "max-h-40 opacity-100" : "max-h-0 opacity-0"
-              }`}
-            >
-              <p
-                className={`px-3 pb-3 text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
-              >
-                {item.a}
-              </p>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 /* ─── Main Help Tab ─── */
 export default function HelpTab({ isDarkMode }: HelpTabProps) {
-  const [query, setQuery] = useState("");
-  const [openIds, setOpenIds] = useState<Set<string>>(new Set(["overview"]));
-  const [readSections, setReadSections] = useState<Set<string>>(new Set());
-  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
-  const toggle = (id: string) => {
-    setOpenIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-    setReadSections((prev) => new Set([...prev, id]));
-  };
-
-  const jumpTo = useCallback((id: string) => {
-    setOpenIds((prev) => new Set([...prev, id]));
-    setReadSections((prev) => new Set([...prev, id]));
-    setTimeout(() => {
-      sectionRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 100);
-  }, []);
-
-  const card = isDarkMode
-    ? "bg-gray-900 border-gray-700 text-gray-100"
-    : "bg-white border-gray-200 text-gray-800";
   const subText = isDarkMode ? "text-gray-400" : "text-gray-600";
   const accent = isDarkMode ? "text-indigo-300" : "text-indigo-700";
   const chip = isDarkMode
@@ -415,10 +71,6 @@ export default function HelpTab({ isDarkMode }: HelpTabProps) {
   const codeBox = isDarkMode
     ? "bg-gray-800 border-gray-700 text-gray-200"
     : "bg-gray-50 border-gray-200 text-gray-800";
-  const itemHeader = isDarkMode
-    ? "bg-gray-800/60 hover:bg-gray-800 border-gray-700"
-    : "bg-gray-50 hover:bg-gray-100 border-gray-200";
-
   const helpImg =
     "rounded-lg border shadow-sm w-full max-w-3xl " +
     (isDarkMode ? "border-gray-700" : "border-gray-200");
@@ -823,276 +475,29 @@ export default function HelpTab({ isDarkMode }: HelpTabProps) {
     [accent, chip, codeBox, subText, helpImg, isDarkMode],
   );
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return sections;
-    return sections.filter(
-      (s) =>
-        s.title.toLowerCase().includes(q) ||
-        s.summary.toLowerCase().includes(q) ||
-        s.id.toLowerCase().includes(q),
-    );
-  }, [query, sections]);
-
-  const expandAll = () => {
-    const allIds = new Set(sections.map((s) => s.id));
-    setOpenIds(allIds);
-    setReadSections(allIds);
-  };
-
-  const collapseAll = () => setOpenIds(new Set());
-
-  // Scroll tracking for "back to top" button
-  const [showBackToTop, setShowBackToTop] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setShowBackToTop(window.scrollY > 400);
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  const scrollToTop = () => {
-    containerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
-  // Keyboard shortcut
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.key === "E") {
-        e.preventDefault();
-        expandAll();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  });
-
   return (
-    <div ref={containerRef} className={`rounded-xl border shadow-sm p-5 sm:p-6 ${card} relative`}>
-      {/* CSS for animations */}
-      <style>{`
-        @keyframes helpFadeIn { from { opacity: 0 } to { opacity: 1 } }
-        @keyframes helpScaleIn { from { opacity: 0; transform: scale(0.92) } to { opacity: 1; transform: scale(1) } }
-      `}</style>
-
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h2 className="text-2xl font-semibold flex items-center gap-2">
-            <BookOpenIcon className="w-6 h-6" />
-            Help &amp; Documentation
-          </h2>
-          <p className={`mt-1 text-sm ${subText}`}>
-            Learn how to set up companies, manage loan facilities, build schedules and run reports.
-          </p>
-        </div>
-        <div className="w-full sm:w-72">
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search help…"
-            className={`w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400 ${
-              isDarkMode
-                ? "bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-500"
-                : "bg-white border-gray-300 text-gray-800 placeholder-gray-400"
-            }`}
-          />
-        </div>
-      </div>
-
-      {/* Quick Start Wizard */}
-      <div className="mt-5">
-        <QuickStartWizard isDarkMode={isDarkMode} />
-      </div>
-
-      {/* Controls bar */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={expandAll}
-            className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
-              isDarkMode
-                ? "border-gray-600 text-gray-400 hover:text-gray-200 hover:bg-gray-700"
-                : "border-gray-300 text-gray-500 hover:text-gray-800 hover:bg-gray-100"
-            }`}
-          >
-            Expand All
-          </button>
-          <button
-            onClick={collapseAll}
-            className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
-              isDarkMode
-                ? "border-gray-600 text-gray-400 hover:text-gray-200 hover:bg-gray-700"
-                : "border-gray-300 text-gray-500 hover:text-gray-800 hover:bg-gray-100"
-            }`}
-          >
-            Collapse All
-          </button>
-        </div>
-        <span className={`text-xs ${subText}`}>
-          {readSections.size}/{sections.length} sections viewed
-        </span>
-      </div>
-
-      {/* Content area with TOC sidebar */}
-      <div className="flex gap-5 items-start">
-        <TableOfContents
-          sections={filtered}
-          openIds={openIds}
-          onJump={jumpTo}
-          isDarkMode={isDarkMode}
-        />
-
-        <div className="flex-1 space-y-3 min-w-0">
-          {filtered.length === 0 && (
-            <p className={`text-sm ${subText}`}>
-              No help topics matched &quot;{query}&quot;.
-            </p>
-          )}
-          {filtered.map((section, idx) => {
-            const isOpen = openIds.has(section.id);
-            const isRead = readSections.has(section.id);
-            const Icon = section.icon;
-            const prevSection = idx > 0 ? filtered[idx - 1] : null;
-            const nextSection = idx < filtered.length - 1 ? filtered[idx + 1] : null;
-            return (
-              <div
-                key={section.id}
-                ref={(el) => {
-                  sectionRefs.current[section.id] = el;
-                }}
-                className={`rounded-lg border transition-all duration-200 ${
-                  isDarkMode ? "border-gray-700" : "border-gray-200"
-                } ${isOpen ? "shadow-md" : ""}`}
-              >
-                <button
-                  type="button"
-                  onClick={() => toggle(section.id)}
-                  className={`w-full flex items-center justify-between gap-3 text-left px-4 py-3 rounded-t-lg border-b transition-all duration-150 ${itemHeader} ${
-                    !isOpen ? "rounded-b-lg border-b-0" : ""
-                  }`}
-                  aria-expanded={isOpen}
-                >
-                  <span className="flex items-center gap-3">
-                    <Icon className={`w-5 h-5 ${accent}`} />
-                    <span className="flex flex-col">
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="font-semibold text-sm"
-                          dangerouslySetInnerHTML={{ __html: section.title }}
-                        />
-                        {isRead && !isOpen && (
-                          <CheckCircleIcon
-                            className={`w-3.5 h-3.5 ${
-                              isDarkMode ? "text-green-500" : "text-green-600"
-                            }`}
-                          />
-                        )}
-                      </span>
-                      <span
-                        className={`text-xs ${subText}`}
-                        dangerouslySetInnerHTML={{ __html: section.summary }}
-                      />
-                    </span>
-                  </span>
-                  <ChevronDownIcon
-                    className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
-                      isOpen ? "rotate-0" : "-rotate-90"
-                    }`}
-                  />
-                </button>
-                <div
-                  className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                    isOpen ? "max-h-1250 opacity-100" : "max-h-0 opacity-0"
-                  }`}
-                >
-                  <div
-                    className={`px-4 py-4 text-sm leading-relaxed ${
-                      isDarkMode ? "text-gray-200" : "text-gray-800"
-                    }`}
-                  >
-                    {section.body}
-
-                    {/* Section navigation footer */}
-                    <div
-                      className={`flex items-center justify-between mt-5 pt-3 border-t ${
-                        isDarkMode ? "border-gray-700" : "border-gray-200"
-                      }`}
-                    >
-                      {prevSection ? (
-                        <button
-                          onClick={() => jumpTo(prevSection.id)}
-                          className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors ${
-                            isDarkMode
-                              ? "text-gray-400 hover:text-indigo-300 hover:bg-gray-800"
-                              : "text-gray-500 hover:text-indigo-700 hover:bg-gray-100"
-                          }`}
-                        >
-                          <ArrowLeftIcon className="w-3 h-3" />
-                          <span dangerouslySetInnerHTML={{ __html: prevSection.title }} />
-                        </button>
-                      ) : (
-                        <span />
-                      )}
-                      {nextSection ? (
-                        <button
-                          onClick={() => jumpTo(nextSection.id)}
-                          className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors ${
-                            isDarkMode
-                              ? "text-gray-400 hover:text-indigo-300 hover:bg-gray-800"
-                              : "text-gray-500 hover:text-indigo-700 hover:bg-gray-100"
-                          }`}
-                        >
-                          <span dangerouslySetInnerHTML={{ __html: nextSection.title }} />
-                          <ArrowRightIcon className="w-3 h-3" />
-                        </button>
-                      ) : (
-                        <span />
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className={`mt-6 rounded-lg border p-4 text-xs ${codeBox}`}>
-        Need more help? Contact the NatPower Finance team or your system administrator.
-        <span className={`block mt-1 ${subText}`}>
-          Tip: Press{" "}
-          <kbd
-            className={`px-1 py-0.5 rounded text-[10px] ${
-              isDarkMode ? "bg-gray-700/50" : "bg-gray-200"
-            }`}
-          >
-            Ctrl+Shift+E
-          </kbd>{" "}
-          to expand all sections at once.
-        </span>
-      </div>
-
-      {/* Floating back-to-top button */}
-      {showBackToTop && (
-        <button
-          onClick={scrollToTop}
-          className={`fixed bottom-6 right-6 z-50 flex items-center gap-1.5 px-3 py-2.5 rounded-full shadow-lg border text-xs font-medium transition-all duration-200 hover:scale-105 ${
-            isDarkMode
-              ? "bg-gray-800 border-gray-600 text-gray-200 hover:bg-gray-700"
-              : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
-          }`}
-          style={{ animation: "helpFadeIn 200ms ease-out" }}
-          title="Back to top"
-        >
-          <ChevronUpIcon className="w-4 h-4" />
-          Top
-        </button>
-      )}
-    </div>
+    <HelpPanel
+      isDarkMode={isDarkMode}
+      sections={sections}
+      quickStartSteps={QUICK_START_STEPS}
+      title="Help & Documentation"
+      subtitle="Learn how to set up companies, manage loan facilities, build schedules and run reports."
+      footerText={
+        <>
+          Need more help? Contact the NatPower Finance team or your system administrator.
+          <span className={`block mt-1 ${subText}`}>
+            Tip: Press{" "}
+            <kbd
+              className={`px-1 py-0.5 rounded text-[10px] ${
+                isDarkMode ? "bg-gray-700/50" : "bg-gray-200"
+              }`}
+            >
+              Ctrl+Shift+E
+            </kbd>{" "}
+            to expand all sections at once.
+          </span>
+        </>
+      }
+    />
   );
 }
