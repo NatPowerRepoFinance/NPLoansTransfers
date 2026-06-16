@@ -352,6 +352,7 @@ export const getLoanFacilitySchedule = async (
     cumulativeInterest: Number(row?.cumulativeInterest ?? row?.cumulative_interest ?? 0),
     total: Number(row?.total ?? 0),
     fees: Number(row?.fees ?? 0),
+    description: String(row?.description ?? ""),
     updatedAt: String(row?.updatedAt ?? row?.updated_at ?? new Date().toISOString()),
   }));
 };

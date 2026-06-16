@@ -210,6 +210,7 @@ type LoanFacilityTabProps = {
     drawDown: string;
     repayment: string;
     fees: string;
+    description: string;
   };
   setScheduleForm: React.Dispatch<
     React.SetStateAction<{
@@ -221,6 +222,7 @@ type LoanFacilityTabProps = {
       drawDown: string;
       repayment: string;
       fees: string;
+      description: string;
     }>
   >;
   availableLenderBankAccounts: string[];
@@ -1678,6 +1680,24 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                         value={scheduleForm.fees}
                         onChange={(e) =>
                           setScheduleForm((prev) => ({ ...prev, fees: e.target.value }))
+                        }
+                        className={`w-full px-3 py-2 border rounded-lg ${
+                          isDarkMode
+                            ? "bg-gray-700 border-gray-600 text-white"
+                            : "bg-white border-gray-300 text-black"
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                        Description
+                      </label>
+                      <input
+                        type="text"
+                        value={scheduleForm.description}
+                        onChange={(e) =>
+                          setScheduleForm((prev) => ({ ...prev, description: e.target.value }))
                         }
                         className={`w-full px-3 py-2 border rounded-lg ${
                           isDarkMode

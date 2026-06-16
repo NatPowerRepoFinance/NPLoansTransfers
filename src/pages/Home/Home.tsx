@@ -457,6 +457,7 @@ export default function Home() {
     drawDown: "0",
     repayment: "0",
     fees: "0",
+    description: "",
   });
   const scheduleImportInputRef = useRef<HTMLInputElement | null>(null);
   const companyHeaderButtonClass =
@@ -1513,6 +1514,7 @@ export default function Home() {
     cumulativeTotal: number;
     total: number;
     fees: number;
+    description: string;
     parentRowId?: string;
     isChild?: boolean;
     childIndex?: number;
@@ -1567,6 +1569,7 @@ export default function Home() {
       drawDown: "0",
       repayment: "0",
       fees: "0",
+      description: "",
     });
   };
 
@@ -1662,6 +1665,7 @@ export default function Home() {
         drawDown,
         repayment,
         fees,
+        description: scheduleForm.description,
       };
 
       if (editingScheduleRowId) {
@@ -1953,6 +1957,7 @@ export default function Home() {
         cumulativeTotal: cumulativeTotalValue,
         total: Number(row?.total ?? principal + interest + fees),
         fees,
+        description: String(row?.description ?? ""),
       };
     });
   }, [loans, selectedLoanId]);
@@ -1983,6 +1988,7 @@ export default function Home() {
       },
       { field: "lenderBankAccount", headerName: "Lender Bank Account", minWidth: 180 },
       { field: "borrowerBankAccount", headerName: "Borrower Bank Account", minWidth: 190 },
+      { field: "description", headerName: "Description", minWidth: 180 },
       {
         field: "annualInterestRate",
         headerName: "Annual Interest Rate %",
@@ -2151,6 +2157,7 @@ export default function Home() {
       drawDown: String(row.drawDown ?? 0),
       repayment: String(row.repayment ?? 0),
       fees: String(row.fees ?? 0),
+      description: row.description ?? "",
     });
     setShowScheduleRowModal(true);
   };
@@ -2192,6 +2199,7 @@ export default function Home() {
       drawDown: "0",
       repayment: "0",
       fees: "0",
+      description: "",
     });
     setShowScheduleRowModal(true);
   };
