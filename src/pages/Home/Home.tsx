@@ -346,6 +346,7 @@ export default function Home() {
       currency: 'EUR' as LoanFacility['currency'],
       annualInterestRate: 0,
       daysInYear: 365,
+      agreementEndDate: '',
       addRow: false,
   };
   const [isCreatingLoan, setIsCreatingLoan] = useState(false);
@@ -457,7 +458,10 @@ export default function Home() {
     drawDown: "0",
     repayment: "0",
     fees: "0",
+    interestRepayment: "0",
     description: "",
+    applyFeeRepaymentToPrincipal: false,
+    applyInterestRepaymentToPrincipal: false,
   });
   const scheduleImportInputRef = useRef<HTMLInputElement | null>(null);
   const companyHeaderButtonClass =
@@ -1510,10 +1514,12 @@ export default function Home() {
     principal: number;
     cumulativePrincipal: number;
     interest: number;
+    interestRepayment: number;
     cumulativeInterest: number;
     cumulativeTotal: number;
     total: number;
     fees: number;
+    cumulativeFee: number;
     description: string;
     parentRowId?: string;
     isChild?: boolean;
@@ -1569,7 +1575,10 @@ export default function Home() {
       drawDown: "0",
       repayment: "0",
       fees: "0",
+      interestRepayment: "0",
       description: "",
+      applyFeeRepaymentToPrincipal: false,
+      applyInterestRepaymentToPrincipal: false,
     });
   };
 
@@ -1637,15 +1646,21 @@ export default function Home() {
     const drawDown = Number(scheduleForm.drawDown);
     const repayment = Number(scheduleForm.repayment);
     const fees = Number(scheduleForm.fees);
+    const interestRepayment = Number(scheduleForm.interestRepayment);
 
     if (
-      [annualInterestRate, drawDown, repayment, fees].some((value) =>
+      [annualInterestRate, drawDown, repayment, fees, interestRepayment].some((value) =>
         Number.isNaN(value)
       )
     ) {
       toast.error("Please enter valid decimal numbers.");
       return;
     }
+
+    const effectiveDrawDown =
+      drawDown +
+      (scheduleForm.applyFeeRepaymentToPrincipal && fees < 0 ? Math.abs(fees) : 0) +
+      (scheduleForm.applyInterestRepaymentToPrincipal && interestRepayment < 0 ? Math.abs(interestRepayment) : 0);
 
     try {
       ensureEditor();
@@ -1662,9 +1677,10 @@ export default function Home() {
         lenderBankAccount: scheduleForm.lenderBankAccount,
         borrowerBankAccount: scheduleForm.borrowerBankAccount,
         annualInterestRatePct: annualInterestRate,
-        drawDown,
+        drawDown: effectiveDrawDown,
         repayment,
         fees,
+        interestRepayment,
         description: scheduleForm.description,
       };
 
@@ -1792,6 +1808,8 @@ export default function Home() {
         "Draw Down",
         "Repayment",
         "Fees",
+        "Interest Repayment",
+        "Description",
       ],
       [
         "2026-01-01",
@@ -1802,6 +1820,8 @@ export default function Home() {
         "100000",
         "0",
         "0",
+        "0",
+        "",
       ],
     ]);
 
@@ -1901,6 +1921,7 @@ export default function Home() {
       const drawDown = Number(row?.drawDown ?? 0);
       const repayment = Number(row?.repayment ?? 0);
       const fees = Number(row?.fees ?? 0);
+      const interestRepayment = Number(row?.interestRepayment ?? 0);
       const annualInterestRate = Number(
         row?.annualInterestRate ??
           row?.annualInterestRatePct ??
@@ -1953,10 +1974,12 @@ export default function Home() {
         principal,
         cumulativePrincipal: cumulativePrincipalValue,
         interest,
+        interestRepayment,
         cumulativeInterest: cumulativeInterestValue,
         cumulativeTotal: cumulativeTotalValue,
         total: Number(row?.total ?? principal + interest + fees),
         fees,
+        cumulativeFee: Number(row?.cumulativeFee ?? row?.cumulative_fee ?? 0),
         description: String(row?.description ?? ""),
       };
     });
@@ -2038,6 +2061,22 @@ export default function Home() {
         headerClass: "ag-right-aligned-header",
       },
       {
+        field: "interestRepayment",
+        headerName: "Interest Repayment",
+        minWidth: 160,
+        valueFormatter: (params) => {
+          const v = Number(params.value ?? 0);
+          if (v === 0) return "-";
+          const formatted = formatCurrency(Math.abs(v));
+          return v < 0 ? `(${formatted})` : formatted;
+        },
+        cellStyle: (params) => ({
+          textAlign: "right",
+          color: Number(params.value ?? 0) < 0 ? "#ef4444" : Number(params.value ?? 0) > 0 ? "#22c55e" : undefined,
+        }),
+        headerClass: "ag-right-aligned-header",
+      },
+      {
         field: "total",
         headerName: "Total",
         minWidth: 110,
@@ -2078,6 +2117,18 @@ export default function Home() {
         headerName: "Fees",
         minWidth: 110,
         valueFormatter: (params) => formatCurrency(Number(params.value ?? 0)),
+        cellStyle: { textAlign: "right" },
+        headerClass: "ag-right-aligned-header",
+      },
+      {
+        field: "cumulativeFee",
+        headerName: "Cumulative Fees",
+        minWidth: 160,
+        valueFormatter: (params) => {
+          const v = Number(params.value ?? 0);
+          const formatted = formatCurrency(Math.abs(v));
+          return v < 0 ? `(${formatted})` : formatted;
+        },
         cellStyle: { textAlign: "right" },
         headerClass: "ag-right-aligned-header",
       },
@@ -2157,7 +2208,10 @@ export default function Home() {
       drawDown: String(row.drawDown ?? 0),
       repayment: String(row.repayment ?? 0),
       fees: String(row.fees ?? 0),
+      interestRepayment: String(row.interestRepayment ?? 0),
       description: row.description ?? "",
+      applyFeeRepaymentToPrincipal: false,
+      applyInterestRepaymentToPrincipal: false,
     });
     setShowScheduleRowModal(true);
   };
@@ -2199,7 +2253,10 @@ export default function Home() {
       drawDown: "0",
       repayment: "0",
       fees: "0",
+      interestRepayment: "0",
       description: "",
+      applyFeeRepaymentToPrincipal: false,
+      applyInterestRepaymentToPrincipal: false,
     });
     setShowScheduleRowModal(true);
   };
@@ -2448,6 +2505,7 @@ export default function Home() {
       currency: selectedLoanFacility.currency,
       annualInterestRate: selectedLoanFacility.annualInterestRate,
       daysInYear: selectedLoanFacility.daysInYear,
+      agreementEndDate: String(selectedLoanFacility.agreementEndDate ?? ""),
       addRow: Boolean(selectedLoanFacility.addRow),
     })
 
@@ -2511,8 +2569,8 @@ export default function Home() {
         ),
         Lender: loanFacilityFieldValue(["lender", "lenderName"]),
         Borrower: loanFacilityFieldValue(["borrower", "borrowerName"]),
-        "Agreement Date": formatDate(
-          loanFacilityFieldValue(["agreementDate", "agreement_date"], "-")
+        "Agreement End Date": formatDate(
+          loanFacilityFieldValue(["agreementEndDate", "agreement_end_date"], "-")
         ),
         Currency: loanFacilityFieldValue(["currency"]),
         "Annual Interest Rate %": loanFacilityFieldValue(
@@ -2535,11 +2593,13 @@ export default function Home() {
       Repayment: row.repayment,
       Principal: row.principal,
       Interest: row.interest,
+      "Interest Repayment": row.interestRepayment,
       Total: row.total,
       "Cumulative Principal": row.cumulativePrincipal,
       "Cumulative Interest": row.cumulativeInterest,
       "Cumulative Total": row.cumulativeTotal,
       Fees: row.fees,
+      "Cumulative Fees": row.cumulativeFee,
     }));
 
     const workbook = XLSX.utils.book_new();
@@ -2596,8 +2656,8 @@ export default function Home() {
         ["Lender", loanFacilityFieldValue(["lender", "lenderName"])],
         ["Borrower", loanFacilityFieldValue(["borrower", "borrowerName"])],
         [
-          "Agreement Date",
-          formatDate(loanFacilityFieldValue(["agreementDate", "agreement_date"], "-")),
+          "Agreement End Date",
+          formatDate(loanFacilityFieldValue(["agreementEndDate", "agreement_end_date"], "-")),
         ],
         ["Currency", loanFacilityFieldValue(["currency"])],
         [
@@ -2626,11 +2686,13 @@ export default function Home() {
         "Repayment",
         "Principal",
         "Interest",
+        "Interest Repayment",
         "Total",
         "Cumulative Principal",
         "Cumulative Interest",
         "Cumulative Total",
         "Fees",
+        "Cumulative Fees",
       ]],
       body: calculatedRows.map((row) => [
         String(row.scheduleIndex),
@@ -2644,11 +2706,13 @@ export default function Home() {
         formatCurrency(row.repayment),
         formatCurrency(row.principal),
         formatCurrency(row.interest),
+        row.interestRepayment !== 0 ? formatCurrency(row.interestRepayment) : "-",
         formatCurrency(row.total),
         formatCurrency(row.cumulativePrincipal),
         formatCurrency(row.cumulativeInterest),
         formatCurrency(row.cumulativeTotal),
         formatCurrency(row.fees),
+        formatCurrency(row.cumulativeFee),
       ]),
       styles: { fontSize: 7 },
       headStyles: { fillColor: [55, 65, 81] },
@@ -2897,6 +2961,7 @@ export default function Home() {
           daysInYear: Number(loanForm.daysInYear),
           status: loanForm.status,
           addRow: loanForm.addRow,
+          agreementEndDate: loanForm.agreementEndDate || undefined,
         });
         toast.success("Loan Facility updated successfully.");
       } else {
@@ -2910,6 +2975,7 @@ export default function Home() {
           daysInYear: Number(loanForm.daysInYear),
           status: loanForm.status,
           addRow: loanForm.addRow,
+          agreementEndDate: loanForm.agreementEndDate || undefined,
         });
         toast.success("Loan Facility created successfully.");
         if (createdLoan?.id) {

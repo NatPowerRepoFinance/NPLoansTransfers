@@ -111,6 +111,7 @@ type CreateLoanFacilityPayload = {
   daysInYear: number;
   status: LoanFacility["status"];
   addRow: boolean;
+  agreementEndDate?: string;
 };
 
 type UpdateLoanFacilityPayload = CreateLoanFacilityPayload;
@@ -288,6 +289,9 @@ export const getLoanFacilities = async (poAccessToken: string): Promise<LoanFaci
       lenderCompanyId: String(loan?.lenderCompanyId ?? loan?.lender_company_id ?? ""),
       borrowerCompanyId: String(loan?.borrowerCompanyId ?? loan?.borrower_company_id ?? ""),
       agreementDate: String(loan?.agreementDate ?? loan?.agreement_date ?? ""),
+      agreementEndDate: loan?.agreementEndDate ?? loan?.agreement_end_date
+        ? String(loan?.agreementEndDate ?? loan?.agreement_end_date)
+        : undefined,
       currency: (loan?.currency ?? "EUR") as LoanFacility["currency"],
       annualInterestRate: Number(loan?.annualInterestRate ?? loan?.annual_interest_rate ?? 0),
       daysInYear: Number(loan?.daysInYear ?? loan?.days_in_year ?? 365),

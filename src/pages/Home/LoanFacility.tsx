@@ -9,6 +9,7 @@ import {
   computeHistoryChanges,
   snapshotToDisplayRows,
 } from "../../utils/loanHistoryDisplay";
+import { formatCurrency } from "../../utils/format";
 
 function LoanHistoryAuditBlock({
   entry,
@@ -163,6 +164,7 @@ type LoanFacilityTabProps = {
     currency: LoanFacility["currency"];
     annualInterestRate: number;
     daysInYear: number;
+    agreementEndDate: string;
     addRow: boolean;
   };
   setLoanForm: React.Dispatch<
@@ -175,6 +177,7 @@ type LoanFacilityTabProps = {
       currency: LoanFacility["currency"];
       annualInterestRate: number;
       daysInYear: number;
+      agreementEndDate: string;
       addRow: boolean;
     }>
   >;
@@ -210,7 +213,10 @@ type LoanFacilityTabProps = {
     drawDown: string;
     repayment: string;
     fees: string;
+    interestRepayment: string;
     description: string;
+    applyFeeRepaymentToPrincipal: boolean;
+    applyInterestRepaymentToPrincipal: boolean;
   };
   setScheduleForm: React.Dispatch<
     React.SetStateAction<{
@@ -222,7 +228,10 @@ type LoanFacilityTabProps = {
       drawDown: string;
       repayment: string;
       fees: string;
+      interestRepayment: string;
       description: string;
+      applyFeeRepaymentToPrincipal: boolean;
+      applyInterestRepaymentToPrincipal: boolean;
     }>
   >;
   availableLenderBankAccounts: string[];
@@ -372,7 +381,9 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
       !!scheduleForm.lenderBankAccount &&
       !!scheduleForm.borrowerBankAccount;
 
-    const hasValidNumbers = ![annualInterestRate, drawDown, repayment, fees].some((value) =>
+    const interestRepayment = Number(scheduleForm.interestRepayment);
+
+    const hasValidNumbers = ![annualInterestRate, drawDown, repayment, fees, interestRepayment].some((value) =>
       Number.isNaN(value),
     );
 
@@ -459,6 +470,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     loanForm.currency === String((selectedLoanFacility as any).currency ?? "") &&
     Number(loanForm.annualInterestRate) === Number((selectedLoanFacility as any).annualInterestRate ?? 0) &&
     Number(loanForm.daysInYear) === Number((selectedLoanFacility as any).daysInYear ?? 0) &&
+    loanForm.agreementEndDate === String((selectedLoanFacility as any).agreementEndDate ?? "") &&
     loanForm.addRow === Boolean((selectedLoanFacility as any).addRow ?? (selectedLoanFacility as any).add_row);
   const isLoanFacilityActionDisabled =
     !canEditLoanFacility ||
@@ -1079,6 +1091,22 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                   />
                 </div>
 
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Agreement End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={loanForm.agreementEndDate}
+                    onChange={(e) =>
+                      setLoanForm((prev) => ({ ...prev, agreementEndDate: e.target.value }))
+                    }
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      isDarkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300 text-black"
+                    }`}
+                  />
+                </div>
+
                 <div className="md:col-span-2">
                   <label
                     className={`inline-flex items-center gap-2 text-sm font-medium cursor-pointer select-none ${
@@ -1175,6 +1203,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                   ["Lender", loanFacilityFieldValue(["lender", "lenderName"])],
                   ["Borrower", loanFacilityFieldValue(["borrower", "borrowerName"])],
                   ["Agreement Date", formatLoanDate(loanFacilityFieldValue(["agreementDate", "agreement_date"], "-"))],
+                  ["Agreement End Date", formatLoanDate(loanFacilityFieldValue(["agreementEndDate", "agreement_end_date"], "-"))],
                   ["Currency", loanFacilityFieldValue(["currency"])],
                   ["Annual Interest Rate %", loanFacilityFieldValue(["annualInterestRate", "annual_interest_rate"], "0")],
                   ["Days in Year", loanFacilityFieldValue(["daysInYear", "days_in_year"], "365")],
@@ -1330,6 +1359,84 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                 </div>
               </div>
             </div>
+
+            {calculatedRows.length > 0 && (() => {
+              const facility = selectedLoanFacility as any;
+              const lastRow = calculatedRows[calculatedRows.length - 1] as any;
+
+              // Read end date — prefer agreementEndDate, fall back to closeDate
+              const agreementEndDate = String(
+                facility?.agreementEndDate ?? facility?.agreement_end_date ??
+                facility?.closeDate ?? facility?.close_date ?? ""
+              ).substring(0, 10);
+
+              const annualInterestRate = Number(
+                facility?.annualInterestRate ?? facility?.annual_interest_rate ?? 0
+              );
+              const daysInYear = Number(
+                facility?.daysInYear ?? facility?.days_in_year ?? 365
+              ) || 365;
+
+              // Read last row values with snake_case fallbacks
+              const lastEndDate = String(
+                lastRow?.endDate ?? lastRow?.end_date ?? ""
+              ).substring(0, 10);
+              const outstandingPrincipal = Number(
+                lastRow?.cumulativePrincipal ?? lastRow?.cumulative_principal ?? 0
+              );
+              const lastCumulativeInterest = Number(
+                lastRow?.cumulativeInterest ?? lastRow?.cumulative_interest ?? 0
+              );
+
+              let projectedCumulativeInterest: number | null = null;
+              let remainingDays = 0;
+              if (agreementEndDate && lastEndDate) {
+                const msInDay = 1000 * 60 * 60 * 24;
+                remainingDays = Math.max(0, Math.round(
+                  (new Date(agreementEndDate).getTime() - new Date(lastEndDate).getTime()) / msInDay
+                ));
+                const projectedAdditionalInterest =
+                  (outstandingPrincipal * annualInterestRate * remainingDays) / (100 * daysInYear);
+                projectedCumulativeInterest = lastCumulativeInterest + projectedAdditionalInterest;
+              }
+
+              const cellBase = `px-4 py-3 text-sm ${isDarkMode ? "text-gray-200" : "text-gray-800"}`;
+              const labelCell = `${cellBase} font-medium`;
+              const valueCell = `${cellBase} text-right font-semibold tabular-nums`;
+              const rowClass = `border-t ${isDarkMode ? "border-gray-700" : "border-gray-200"}`;
+
+              return (
+                <div className={`mt-4 rounded-xl border shadow-sm overflow-hidden ${isDarkMode ? "border-gray-700/80 bg-gray-800/80" : "border-gray-200 bg-white"}`}>
+                  <div className={`px-4 py-2.5 border-b ${isDarkMode ? "border-gray-700 bg-gray-900/40" : "border-gray-200 bg-slate-50"}`}>
+                    <h4 className="text-sm font-semibold tracking-tight">Projected Summary</h4>
+                  </div>
+                  <table className="w-full">
+                    <tbody>
+                      <tr className={rowClass}>
+                        <td className={labelCell}>
+                          Projected Cumulative Interest to End of Agreement
+                          {projectedCumulativeInterest !== null && remainingDays > 0 && (
+                            <span className={`ml-2 text-xs font-normal ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                              ({remainingDays} day{remainingDays !== 1 ? "s" : ""} remaining after last row)
+                            </span>
+                          )}
+                        </td>
+                        <td className={valueCell}>
+                          {projectedCumulativeInterest !== null
+                            ? projectedCumulativeInterest < 0
+                              ? `(${formatCurrency(Math.abs(projectedCumulativeInterest))})`
+                              : formatCurrency(projectedCumulativeInterest)
+                            : <span className={`text-xs font-normal ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>
+                                Set Agreement End Date or Close Date to calculate
+                              </span>
+                          }
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
 
             {isImportScheduleModalOpen && createPortal(
               <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
@@ -1610,6 +1717,24 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                       </select>
                     </div>
 
+
+                    <div>
+                      <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                        Description
+                      </label>
+                      <input
+                        type="text"
+                        value={scheduleForm.description}
+                        onChange={(e) =>
+                          setScheduleForm((prev) => ({ ...prev, description: e.target.value }))
+                        }
+                        className={`w-full px-3 py-2 border rounded-lg ${
+                          isDarkMode
+                            ? "bg-gray-700 border-gray-600 text-white"
+                            : "bg-white border-gray-300 text-black"
+                        }`}
+                      />
+                    </div>
                     <div>
                       <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
                         Annual Interest Rate %
@@ -1632,7 +1757,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                       />
                     </div>
 
-                    <div>
+                     <div>
                       <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
                         Draw Down
                       </label>
@@ -1651,7 +1776,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                       />
                     </div>
 
-                    <div>
+                      <div>
                       <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
                         Repayment
                       </label>
@@ -1670,16 +1795,44 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                       />
                     </div>
 
+                         <div>
+                      <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                        Interest Repayment
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={scheduleForm.interestRepayment}
+                        onChange={(e) =>
+                          setScheduleForm((prev) => ({
+                            ...prev,
+                            interestRepayment: e.target.value,
+                            applyInterestRepaymentToPrincipal: Number(e.target.value) >= 0 ? false : prev.applyInterestRepaymentToPrincipal,
+                          }))
+                        }
+                        className={`w-full px-3 py-2 border rounded-lg ${
+                          isDarkMode
+                            ? "bg-gray-700 border-gray-600 text-white"
+                            : "bg-white border-gray-300 text-black"
+                        }`}
+                      />
+                     
+                    </div>
+
                     <div>
                       <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                        Fees
+                        Fees <span className={`text-xs font-normal ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>(use negative value to repay)</span>
                       </label>
                       <input
                         type="number"
                         step="0.01"
                         value={scheduleForm.fees}
                         onChange={(e) =>
-                          setScheduleForm((prev) => ({ ...prev, fees: e.target.value }))
+                          setScheduleForm((prev) => ({
+                            ...prev,
+                            fees: e.target.value,
+                            applyFeeRepaymentToPrincipal: Number(e.target.value) >= 0 ? false : prev.applyFeeRepaymentToPrincipal,
+                          }))
                         }
                         className={`w-full px-3 py-2 border rounded-lg ${
                           isDarkMode
@@ -1687,25 +1840,18 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                             : "bg-white border-gray-300 text-black"
                         }`}
                       />
+                   
                     </div>
+                    
 
-                    <div>
-                      <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                        Description
-                      </label>
-                      <input
-                        type="text"
-                        value={scheduleForm.description}
-                        onChange={(e) =>
-                          setScheduleForm((prev) => ({ ...prev, description: e.target.value }))
-                        }
-                        className={`w-full px-3 py-2 border rounded-lg ${
-                          isDarkMode
-                            ? "bg-gray-700 border-gray-600 text-white"
-                            : "bg-white border-gray-300 text-black"
-                        }`}
-                      />
-                    </div>
+                   
+
+                  
+
+                    
+
+                   
+
                   </div>
 
                   <div className="flex gap-3 mt-6">
