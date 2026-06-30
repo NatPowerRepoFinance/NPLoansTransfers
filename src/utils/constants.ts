@@ -21,6 +21,8 @@ export interface ScheduleItem {
   cumulativeInterest?: number
   total?: number
   fees: number
+  cumulativeFee?: number
+  interestAdjustment?: number
   description?: string
   updatedAt: string
 }

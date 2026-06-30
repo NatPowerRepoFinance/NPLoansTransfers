@@ -113,6 +113,15 @@ body {
   border: none !important;
 }
 
+.schedule-grid .ag-floating-bottom {
+  border-top: none !important;
+  margin-top: 0 !important;
+}
+
+.schedule-grid .ag-floating-bottom-container .ag-row {
+  border-top: 2px solid rgba(99, 102, 241, 0.3);
+}
+
 .drawdown-schedule-scroll {
   display: block;
   width: 100%;

@@ -99,6 +99,7 @@ type CreateLoanFacilitySchedulePayload = {
   drawDown: number;
   repayment: number;
   fees: number;
+  interestAdjustment?: number;
 };
 
 type CreateLoanFacilityPayload = {
@@ -296,7 +297,31 @@ export const getLoanFacilities = async (poAccessToken: string): Promise<LoanFaci
       annualInterestRate: Number(loan?.annualInterestRate ?? loan?.annual_interest_rate ?? 0),
       daysInYear: Number(loan?.daysInYear ?? loan?.days_in_year ?? 365),
       addRow: Boolean(loan?.addRow ?? loan?.add_row ?? false),
-      schedule: Array.isArray(loan?.schedule) ? loan.schedule : [],
+      schedule: Array.isArray(loan?.schedule)
+        ? loan.schedule.map((row: any, i: number) => ({
+            id: String(row?.id ?? row?.scheduleId ?? i + 1),
+            rowIndex: Number(row?.rowIndex ?? row?.row_index ?? i + 1),
+            startDate: String(row?.startDate ?? row?.start_date ?? ""),
+            endDate: String(row?.endDate ?? row?.end_date ?? ""),
+            lenderBankAccount: String(row?.lenderBankAccount ?? row?.lender_bank_account ?? ""),
+            borrowerBankAccount: String(row?.borrowerBankAccount ?? row?.borrower_bank_account ?? ""),
+            annualInterestRate: Number(row?.annualInterestRate ?? row?.annualInterestRatePct ?? row?.annual_interest_rate ?? row?.annual_interest_rate_pct ?? 0),
+            annualInterestRatePct: Number(row?.annualInterestRatePct ?? row?.annualInterestRate ?? row?.annual_interest_rate_pct ?? row?.annual_interest_rate ?? 0),
+            days: Number(row?.days ?? 0),
+            drawDown: Number(row?.drawDown ?? row?.draw_down ?? 0),
+            repayment: Number(row?.repayment ?? 0),
+            principal: Number(row?.principal ?? 0),
+            cumulativePrincipal: Number(row?.cumulativePrincipal ?? row?.cumulative_principal ?? 0),
+            interest: Number(row?.interest ?? 0),
+            cumulativeInterest: Number(row?.cumulativeInterest ?? row?.cumulative_interest ?? 0),
+            total: Number(row?.total ?? 0),
+            fees: Number(row?.fees ?? 0),
+            cumulativeFee: Number(row?.cumulativeFee ?? row?.cumulative_fee ?? row?.cumulativeFees ?? row?.cumulative_fees ?? 0),
+            interestAdjustment: Number(row?.interestAdjustment ?? row?.interest_adjustment ?? 0),
+            description: String(row?.description ?? ""),
+            updatedAt: String(row?.updatedAt ?? row?.updated_at ?? new Date().toISOString()),
+          }))
+        : [],
       history: Array.isArray(loan?.history) ? loan.history : [],
       createdAt: String(loan?.createdAt ?? loan?.created_at ?? new Date().toISOString()),
       updatedAt: String(loan?.updatedAt ?? loan?.updated_at ?? new Date().toISOString()),
@@ -356,6 +381,8 @@ export const getLoanFacilitySchedule = async (
     cumulativeInterest: Number(row?.cumulativeInterest ?? row?.cumulative_interest ?? 0),
     total: Number(row?.total ?? 0),
     fees: Number(row?.fees ?? 0),
+    cumulativeFee: Number(row?.cumulativeFee ?? row?.cumulative_fee ?? row?.cumulativeFees ?? row?.cumulative_fees ?? 0),
+    interestAdjustment: Number(row?.interestAdjustment ?? row?.interest_adjustment ?? 0),
     description: String(row?.description ?? ""),
     updatedAt: String(row?.updatedAt ?? row?.updated_at ?? new Date().toISOString()),
   }));

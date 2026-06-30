@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -343,70 +341,6 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
       { countries: 0, cumulativeInterest: 0, cumulativePrincipal: 0, total: 0 },
     );
   }, [countrySummary]);
-
-  const countryCoordinates = useMemo<Record<string, [number, number]>>(
-    () => ({
-      italy: [12.5674, 41.8719],
-      "united kingdom": [-3.436, 55.3781],
-      "united states": [-95.7129, 37.0902],
-      usa: [-95.7129, 37.0902],
-      us: [-95.7129, 37.0902],
-      kazakhstan: [66.9237, 48.0196],
-      khazakstan: [66.9237, 48.0196],
-      india: [78.9629, 20.5937],
-      global: [0, 20],
-      unknown: [0, 0],
-    }),
-    []
-  );
-
-  useEffect(() => {
-    if (!mapContainerRef.current) return;
-
-    const map = new maplibregl.Map({
-      container: mapContainerRef.current,
-      style: isDarkMode
-        ? "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
-        : "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-      center: [10, 25],
-      zoom: 1.2,
-    });
-
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
-
-    for (const row of countrySummary) {
-      const coordinate = countryCoordinates[row.country.trim().toLowerCase()];
-      if (!coordinate) continue;
-
-      const markerEl = document.createElement("div");
-      markerEl.style.width = "10px";
-      markerEl.style.height = "10px";
-      markerEl.style.borderRadius = "9999px";
-      markerEl.style.backgroundColor = "#2563eb";
-      markerEl.style.border = "2px solid #ffffff";
-      markerEl.style.boxShadow = "0 1px 6px rgba(0,0,0,0.4)";
-
-      new maplibregl.Marker({ element: markerEl })
-        .setLngLat(coordinate)
-        .setPopup(
-          new maplibregl.Popup({ 
-            offset: 12,
-            className: isDarkMode ? 'maplibre-dark-popup' : ''
-          }).setHTML(
-            `<div><strong>${row.country}</strong><br/>Cumulative Interest: ${formatCurrency(
-              row.cumulativeInterest
-            )}<br/>Cumulative Principal: ${formatCurrency(
-              row.cumulativePrincipal
-            )}<br/>Total: ${formatCurrency(row.total)}</div>`
-          )
-        )
-        .addTo(map);
-    }
-
-    return () => {
-      map.remove();
-    };
-  }, [countrySummary, countryCoordinates, isDarkMode]);
 
   const exportReportToExcel = () => {
     const workbook = XLSX.utils.book_new();
@@ -801,16 +735,6 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
           </div>
         )}
 
-        <div className="mt-6">
-          <h3 className="text-lg font-semibold mb-3">Map View</h3>
-          <div
-            ref={mapContainerRef}
-            className={`rounded-lg border overflow-hidden ${
-              isDarkMode ? "border-gray-700" : "border-gray-200"
-            }`}
-            style={{ height: 360 }}
-          />
-        </div>
 
         <div className="mt-6">
           <h3 className="text-lg font-semibold mb-3">Loan Detail Summary By Country</h3>

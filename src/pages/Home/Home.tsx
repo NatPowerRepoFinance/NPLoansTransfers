@@ -363,12 +363,8 @@ export default function Home() {
   const [showOnlyActiveLoanFacilities, setShowOnlyActiveLoanFacilities] = useState(false);
   const [showLoanFacilityModal, setShowLoanFacilityModal] = useState(false);
   const [loanForm, setLoanForm] = useState(emptyLoanForm);
-<<<<<<< HEAD
   const [activeTab, setActiveTab] = useState<"loan-facility" | "report" | "admin" | "help">("loan-facility");
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
-=======
-  const [activeTab, setActiveTab] = useState<"loan-facility" | "report" | "admin">("loan-facility");
->>>>>>> 0eb8fe5c9054813d92fbec3e1e65ca321ae95904
 
   const [companies, setCompanies] = useState<Company[]>([
     {
@@ -462,7 +458,7 @@ export default function Home() {
     drawDown: "0",
     repayment: "0",
     fees: "0",
-    interestRepayment: "0",
+    interestAdjustment: "0",
     description: "",
     applyFeeRepaymentToPrincipal: false,
     applyInterestRepaymentToPrincipal: false,
@@ -1550,7 +1546,7 @@ export default function Home() {
     principal: number;
     cumulativePrincipal: number;
     interest: number;
-    interestRepayment: number;
+    interestAdjustment: number;
     cumulativeInterest: number;
     cumulativeTotal: number;
     total: number;
@@ -1611,7 +1607,7 @@ export default function Home() {
       drawDown: "0",
       repayment: "0",
       fees: "0",
-      interestRepayment: "0",
+      interestAdjustment: "0",
       description: "",
       applyFeeRepaymentToPrincipal: false,
       applyInterestRepaymentToPrincipal: false,
@@ -1682,10 +1678,10 @@ export default function Home() {
     const drawDown = Number(scheduleForm.drawDown);
     const repayment = Number(scheduleForm.repayment);
     const fees = Number(scheduleForm.fees);
-    const interestRepayment = Number(scheduleForm.interestRepayment);
+    const interestAdjustment = Number(scheduleForm.interestAdjustment);
 
     if (
-      [annualInterestRate, drawDown, repayment, fees, interestRepayment].some((value) =>
+      [annualInterestRate, drawDown, repayment, fees, interestAdjustment].some((value) =>
         Number.isNaN(value)
       )
     ) {
@@ -1696,7 +1692,7 @@ export default function Home() {
     const effectiveDrawDown =
       drawDown +
       (scheduleForm.applyFeeRepaymentToPrincipal && fees < 0 ? Math.abs(fees) : 0) +
-      (scheduleForm.applyInterestRepaymentToPrincipal && interestRepayment < 0 ? Math.abs(interestRepayment) : 0);
+      (scheduleForm.applyInterestRepaymentToPrincipal && interestAdjustment < 0 ? Math.abs(interestAdjustment) : 0);
 
     try {
       ensureEditor();
@@ -1716,7 +1712,7 @@ export default function Home() {
         drawDown: effectiveDrawDown,
         repayment,
         fees,
-        interestRepayment,
+        interestAdjustment,
         description: scheduleForm.description,
       };
 
@@ -1953,7 +1949,7 @@ export default function Home() {
       const drawDown = Number(row?.drawDown ?? 0);
       const repayment = Number(row?.repayment ?? 0);
       const fees = Number(row?.fees ?? 0);
-      const interestRepayment = Number(row?.interestRepayment ?? 0);
+      const interestAdjustment = Number(row?.interestAdjustment ?? row?.interest_adjustment ?? 0);
       const annualInterestRate = Number(
         row?.annualInterestRate ??
           row?.annualInterestRatePct ??
@@ -2006,7 +2002,7 @@ export default function Home() {
         principal,
         cumulativePrincipal: cumulativePrincipalValue,
         interest,
-        interestRepayment,
+        interestAdjustment,
         cumulativeInterest: cumulativeInterestValue,
         cumulativeTotal: cumulativeTotalValue,
         total: Number(row?.total ?? principal + interest + fees),
@@ -2028,6 +2024,8 @@ export default function Home() {
         headerName: "Index",
         minWidth: 80,
         pinned: "left",
+        valueFormatter: (params) =>
+          params.node?.rowPinned === "bottom" ? "Projected" : String(params.value ?? ""),
       },
       {
         field: "startDate",
@@ -2043,7 +2041,7 @@ export default function Home() {
       },
       { field: "lenderBankAccount", headerName: "Lender Bank Account", minWidth: 180 },
       { field: "borrowerBankAccount", headerName: "Borrower Bank Account", minWidth: 190 },
-      { field: "description", headerName: "Description", minWidth: 180 },
+      { field: "description", headerName: "Description", minWidth: 220, tooltipField: "description" },
       {
         field: "annualInterestRate",
         headerName: "Annual Interest Rate %",
@@ -2060,7 +2058,8 @@ export default function Home() {
         field: "drawDown",
         headerName: "Draw Down",
         minWidth: 120,
-        valueFormatter: (params) => formatCurrency(Number(params.value ?? 0)),
+        valueFormatter: (params) =>
+          formatCurrency(Number(params.value ?? 0)),
         cellStyle: { textAlign: "right" },
         headerClass: "ag-right-aligned-header",
       },
@@ -2068,7 +2067,8 @@ export default function Home() {
         field: "repayment",
         headerName: "Repayment",
         minWidth: 120,
-        valueFormatter: (params) => formatCurrency(Number(params.value ?? 0)),
+        valueFormatter: (params) =>
+          formatCurrency(Number(params.value ?? 0)),
         cellStyle: { textAlign: "right" },
         headerClass: "ag-right-aligned-header",
       },
@@ -2093,7 +2093,7 @@ export default function Home() {
         headerClass: "ag-right-aligned-header",
       },
       {
-        field: "interestRepayment",
+        field: "interestAdjustment",
         headerName: "Interest Repayment",
         minWidth: 160,
         valueFormatter: (params) => {
@@ -2104,7 +2104,6 @@ export default function Home() {
         },
         cellStyle: (params) => ({
           textAlign: "right",
-          color: Number(params.value ?? 0) < 0 ? "#ef4444" : Number(params.value ?? 0) > 0 ? "#22c55e" : undefined,
         }),
         headerClass: "ag-right-aligned-header",
       },
@@ -2148,7 +2147,8 @@ export default function Home() {
         field: "fees",
         headerName: "Fees",
         minWidth: 110,
-        valueFormatter: (params) => formatCurrency(Number(params.value ?? 0)),
+        valueFormatter: (params) =>
+          formatCurrency(Number(params.value ?? 0)),
         cellStyle: { textAlign: "right" },
         headerClass: "ag-right-aligned-header",
       },
@@ -2170,9 +2170,10 @@ export default function Home() {
       columns.push({
         headerName: "Actions",
         minWidth: 220,
-        cellRenderer: (params: { data?: DrawDownRow }) => {
+        cellRenderer: (params: { data?: DrawDownRow; node?: any }) => {
           const row = params.data;
           if (!row) return null;
+          if (params.node?.rowPinned === "bottom") return null;
 
           return (
             <div className="flex items-center gap-2 h-full">
@@ -2240,7 +2241,7 @@ export default function Home() {
       drawDown: String(row.drawDown ?? 0),
       repayment: String(row.repayment ?? 0),
       fees: String(row.fees ?? 0),
-      interestRepayment: String(row.interestRepayment ?? 0),
+      interestAdjustment: String(row.interestAdjustment ?? 0),
       description: row.description ?? "",
       applyFeeRepaymentToPrincipal: false,
       applyInterestRepaymentToPrincipal: false,
@@ -2285,7 +2286,7 @@ export default function Home() {
       drawDown: "0",
       repayment: "0",
       fees: "0",
-      interestRepayment: "0",
+      interestAdjustment: "0",
       description: "",
       applyFeeRepaymentToPrincipal: false,
       applyInterestRepaymentToPrincipal: false,
@@ -2621,7 +2622,7 @@ export default function Home() {
       Repayment: row.repayment,
       Principal: row.principal,
       Interest: row.interest,
-      "Interest Repayment": row.interestRepayment,
+      "Interest Repayment": row.interestAdjustment,
       Total: row.total,
       "Cumulative Principal": row.cumulativePrincipal,
       "Cumulative Interest": row.cumulativeInterest,
@@ -2734,7 +2735,7 @@ export default function Home() {
         formatCurrency(row.repayment),
         formatCurrency(row.principal),
         formatCurrency(row.interest),
-        row.interestRepayment !== 0 ? formatCurrency(row.interestRepayment) : "-",
+        row.interestAdjustment !== 0 ? formatCurrency(row.interestAdjustment) : "-",
         formatCurrency(row.total),
         formatCurrency(row.cumulativePrincipal),
         formatCurrency(row.cumulativeInterest),

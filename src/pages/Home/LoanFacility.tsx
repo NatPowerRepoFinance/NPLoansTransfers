@@ -212,7 +212,7 @@ type LoanFacilityTabProps = {
     drawDown: string;
     repayment: string;
     fees: string;
-    interestRepayment: string;
+    interestAdjustment: string;
     description: string;
     applyFeeRepaymentToPrincipal: boolean;
     applyInterestRepaymentToPrincipal: boolean;
@@ -227,7 +227,7 @@ type LoanFacilityTabProps = {
       drawDown: string;
       repayment: string;
       fees: string;
-      interestRepayment: string;
+      interestAdjustment: string;
       description: string;
       applyFeeRepaymentToPrincipal: boolean;
       applyInterestRepaymentToPrincipal: boolean;
@@ -379,9 +379,9 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
       !!scheduleForm.lenderBankAccount &&
       !!scheduleForm.borrowerBankAccount;
 
-    const interestRepayment = Number(scheduleForm.interestRepayment);
+    const interestAdjustment = Number(scheduleForm.interestAdjustment);
 
-    const hasValidNumbers = ![annualInterestRate, drawDown, repayment, fees, interestRepayment].some((value) =>
+    const hasValidNumbers = ![annualInterestRate, drawDown, repayment, fees, interestAdjustment].some((value) =>
       Number.isNaN(value),
     );
 
@@ -402,12 +402,23 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
         scheduleForm.endDate <= insertDateBounds.maxDate
       );
 
+    const facilityAgreementEndDate = String(
+      (selectedLoanFacility as any)?.agreementEndDate ??
+      (selectedLoanFacility as any)?.agreement_end_date ?? ""
+    ).substring(0, 10);
+    const endDateWithinAgreement =
+      insertDateBounds !== null ||
+      !facilityAgreementEndDate ||
+      !scheduleForm.endDate ||
+      scheduleForm.endDate <= facilityAgreementEndDate;
+
     return !(
       hasRequiredFields &&
       hasValidNumbers &&
       repaymentWithinDrawDown &&
       endDateNotEarlierThanStartDate &&
-      datesWithinInsertBounds
+      datesWithinInsertBounds &&
+      endDateWithinAgreement
     );
   })();
   const scheduleRowValidationMessage = (() => {
@@ -417,6 +428,16 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
       scheduleForm.endDate < scheduleForm.startDate
     ) {
       return "End Date cannot be earlier than Start Date.";
+    }
+
+    if (!insertDateBounds && scheduleForm.endDate) {
+      const facilityAgreementEndDate = String(
+        (selectedLoanFacility as any)?.agreementEndDate ??
+        (selectedLoanFacility as any)?.agreement_end_date ?? ""
+      ).substring(0, 10);
+      if (facilityAgreementEndDate && scheduleForm.endDate > facilityAgreementEndDate) {
+        return `End Date cannot be later than the Agreement End Date (${facilityAgreementEndDate}).`;
+      }
     }
 
     const drawDown = Number(scheduleForm.drawDown);
@@ -1282,13 +1303,68 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                     )}
                   </div>
                 )}
+                {(() => {
+                  const facility = selectedLoanFacility as any;
+                  const lastRow = calculatedRows.length > 0 ? calculatedRows[calculatedRows.length - 1] as any : null;
+                  const agreementEndDate = String(
+                    facility?.agreementEndDate ?? facility?.agreement_end_date ??
+                    facility?.closeDate ?? facility?.close_date ?? ""
+                  ).substring(0, 10);
+                  const annualInterestRate = Number(facility?.annualInterestRate ?? facility?.annual_interest_rate ?? 0);
+                  const daysInYear = Number(facility?.daysInYear ?? facility?.days_in_year ?? 365) || 365;
+                  const lastEndDate = lastRow ? String(lastRow?.endDate ?? lastRow?.end_date ?? "").substring(0, 10) : "";
+                  const outstandingPrincipal = Number(lastRow?.cumulativePrincipal ?? lastRow?.cumulative_principal ?? 0);
+                  const lastCumulativeInterest = Number(lastRow?.cumulativeInterest ?? lastRow?.cumulative_interest ?? 0);
+                  const lastCumulativeFee = Number(lastRow?.cumulativeFee ?? lastRow?.cumulative_fee ?? 0);
+                  const msInDay = 1000 * 60 * 60 * 24;
+                  const remainingDays = agreementEndDate && lastEndDate
+                    ? Math.max(0, Math.round((new Date(agreementEndDate).getTime() - new Date(lastEndDate).getTime()) / msInDay))
+                    : 0;
+                  const projectedAdditionalInterest = remainingDays > 0
+                    ? (outstandingPrincipal * annualInterestRate * remainingDays) / (100 * daysInYear)
+                    : 0;
+                  const projectedCumulativeInterest = lastCumulativeInterest + projectedAdditionalInterest;
+                  const projectedStartDate = lastEndDate
+                    ? (() => { const d = new Date(lastEndDate); d.setDate(d.getDate() + 1); return d.toISOString().substring(0, 10); })()
+                    : "";
+                  const projectedRow = calculatedRows.length > 0 && remainingDays > 0 ? [{
+                    id: "projected",
+                    isProjected: true,
+                    scheduleIndex: 0,
+                    startDate: projectedStartDate,
+                    endDate: agreementEndDate,
+                    lenderBankAccount: "",
+                    borrowerBankAccount: "",
+                    annualInterestRate: 0,
+                    days: remainingDays,
+                    drawDown: 0,
+                    repayment: 0,
+                    principal: outstandingPrincipal,
+                    cumulativePrincipal: outstandingPrincipal,
+                    interest: projectedAdditionalInterest,
+                    interestAdjustment: 0,
+                    cumulativeInterest: projectedCumulativeInterest,
+                    cumulativeTotal: outstandingPrincipal + projectedCumulativeInterest,
+                    total: 0,
+                    fees: 0,
+                    cumulativeFee: lastCumulativeFee,
+                    description: `${remainingDays} day${remainingDays !== 1 ? "s" : ""} to agreement end date`,
+                  }] : [];
+
+                  const gridHeight = Math.min(
+                    520,
+                    Math.max(160, 42 + calculatedRows.length * 42 + projectedRow.length * 42 + 2)
+                  );
+
+                  return (
                 <div
                   className={`schedule-grid ${isDarkMode ? "ag-theme-alpine-dark" : "ag-theme-alpine"}`}
-                  style={{ width: "100%", height: 360 }}
+                  style={{ width: "100%", height: gridHeight }}
                 >
                   <AgGridReact
                     key={`${selectedLoanId}-${calculatedRows.length}`}
                     rowData={calculatedRows}
+                    pinnedBottomRowData={projectedRow}
                     columnDefs={scheduleColumnDefs}
                     defaultColDef={{
                       sortable: false,
@@ -1301,7 +1377,16 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                     headerHeight={42}
                     suppressCellFocus
                     overlayNoRowsTemplate="No draw down schedule rows available."
-                    getRowStyle={(params: any) => {
+                    getRowStyle={(params: any): any => {
+                      if (params.node?.rowPinned === "bottom") {
+                        return {
+                          backgroundColor: isDarkMode
+                            ? "rgba(99, 102, 241, 0.14)"
+                            : "rgba(99, 102, 241, 0.08)",
+                          fontStyle: "italic",
+                          fontWeight: 500,
+                        };
+                      }
                       const rowId = String(params.data?.id ?? "");
                       const isOverlap = scheduleDateIssues.overlapIds.has(rowId);
                       const isGap = scheduleDateIssues.gapIds.has(rowId);
@@ -1343,86 +1428,11 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                     }}
                   />
                 </div>
+                  );
+                })()}
               </div>
             </div>
 
-            {calculatedRows.length > 0 && (() => {
-              const facility = selectedLoanFacility as any;
-              const lastRow = calculatedRows[calculatedRows.length - 1] as any;
-
-              // Read end date — prefer agreementEndDate, fall back to closeDate
-              const agreementEndDate = String(
-                facility?.agreementEndDate ?? facility?.agreement_end_date ??
-                facility?.closeDate ?? facility?.close_date ?? ""
-              ).substring(0, 10);
-
-              const annualInterestRate = Number(
-                facility?.annualInterestRate ?? facility?.annual_interest_rate ?? 0
-              );
-              const daysInYear = Number(
-                facility?.daysInYear ?? facility?.days_in_year ?? 365
-              ) || 365;
-
-              // Read last row values with snake_case fallbacks
-              const lastEndDate = String(
-                lastRow?.endDate ?? lastRow?.end_date ?? ""
-              ).substring(0, 10);
-              const outstandingPrincipal = Number(
-                lastRow?.cumulativePrincipal ?? lastRow?.cumulative_principal ?? 0
-              );
-              const lastCumulativeInterest = Number(
-                lastRow?.cumulativeInterest ?? lastRow?.cumulative_interest ?? 0
-              );
-
-              let projectedCumulativeInterest: number | null = null;
-              let remainingDays = 0;
-              if (agreementEndDate && lastEndDate) {
-                const msInDay = 1000 * 60 * 60 * 24;
-                remainingDays = Math.max(0, Math.round(
-                  (new Date(agreementEndDate).getTime() - new Date(lastEndDate).getTime()) / msInDay
-                ));
-                const projectedAdditionalInterest =
-                  (outstandingPrincipal * annualInterestRate * remainingDays) / (100 * daysInYear);
-                projectedCumulativeInterest = lastCumulativeInterest + projectedAdditionalInterest;
-              }
-
-              const cellBase = `px-4 py-3 text-sm ${isDarkMode ? "text-gray-200" : "text-gray-800"}`;
-              const labelCell = `${cellBase} font-medium`;
-              const valueCell = `${cellBase} text-right font-semibold tabular-nums`;
-              const rowClass = `border-t ${isDarkMode ? "border-gray-700" : "border-gray-200"}`;
-
-              return (
-                <div className={`mt-4 rounded-xl border shadow-sm overflow-hidden ${isDarkMode ? "border-gray-700/80 bg-gray-800/80" : "border-gray-200 bg-white"}`}>
-                  <div className={`px-4 py-2.5 border-b ${isDarkMode ? "border-gray-700 bg-gray-900/40" : "border-gray-200 bg-slate-50"}`}>
-                    <h4 className="text-sm font-semibold tracking-tight">Projected Summary</h4>
-                  </div>
-                  <table className="w-full">
-                    <tbody>
-                      <tr className={rowClass}>
-                        <td className={labelCell}>
-                          Projected Cumulative Interest to End of Agreement
-                          {projectedCumulativeInterest !== null && remainingDays > 0 && (
-                            <span className={`ml-2 text-xs font-normal ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                              ({remainingDays} day{remainingDays !== 1 ? "s" : ""} remaining after last row)
-                            </span>
-                          )}
-                        </td>
-                        <td className={valueCell}>
-                          {projectedCumulativeInterest !== null
-                            ? projectedCumulativeInterest < 0
-                              ? `(${formatCurrency(Math.abs(projectedCumulativeInterest))})`
-                              : formatCurrency(projectedCumulativeInterest)
-                            : <span className={`text-xs font-normal ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>
-                                Set Agreement End Date or Close Date to calculate
-                              </span>
-                          }
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })()}
 
             {isImportScheduleModalOpen && createPortal(
               <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
@@ -1558,6 +1568,15 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                       isDarkMode ? "bg-gray-800" : "bg-white"
                     }`}
                   >
+                    {scheduleRowValidationMessage && (
+                      <div className={`mb-4 px-4 py-3 rounded-lg border text-sm font-medium ${
+                        isDarkMode
+                          ? "bg-red-900/30 border-red-700/50 text-red-300"
+                          : "bg-red-50 border-red-300 text-red-700"
+                      }`}>
+                        {scheduleRowValidationMessage}
+                      </div>
+                    )}
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-xl font-semibold">{scheduleRowModalTitle}</h3>
                     <button
@@ -1785,11 +1804,11 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                       <input
                         type="number"
                         step="0.01"
-                        value={scheduleForm.interestRepayment}
+                        value={scheduleForm.interestAdjustment}
                         onChange={(e) =>
                           setScheduleForm((prev) => ({
                             ...prev,
-                            interestRepayment: e.target.value,
+                            interestAdjustment: e.target.value,
                             applyInterestRepaymentToPrincipal: Number(e.target.value) >= 0 ? false : prev.applyInterestRepaymentToPrincipal,
                           }))
                         }
@@ -1827,14 +1846,6 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                     </div>
                     
 
-                   
-
-                  
-
-                    
-
-                   
-
                   </div>
 
                   <div className="flex gap-3 mt-6">
@@ -1864,9 +1875,6 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                       {scheduleRowSubmitLabel}
                     </button>
                   </div>
-                  {scheduleRowValidationMessage && (
-                    <p className="mt-3 text-sm text-red-500">{scheduleRowValidationMessage}</p>
-                  )}
                   </div>
                 </div>
               </div>,
