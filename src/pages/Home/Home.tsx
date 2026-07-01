@@ -1465,16 +1465,19 @@ export default function Home() {
   const showActiveOnly = showOnlyActiveLoanFacilities;
 
   const currentAccessUser = useMemo(() => {
-    const role = localStorage.getItem("user_role");
-    const country = localStorage.getItem("user_country");
+    const role = (localStorage.getItem("user_role") ?? "").trim();
+    const country = (localStorage.getItem("user_country") ?? "").trim();
 
     if (!role && !country) {
       return null;
     }
 
+    // Enforce viewer-only for any user without a country assignment.
+    const effectiveRole = country ? role : "Viewer";
+
     return {
-      role: role || "",
-      country: country || "",
+      role: effectiveRole,
+      country,
     };
   }, []);
 

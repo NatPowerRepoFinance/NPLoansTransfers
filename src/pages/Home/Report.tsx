@@ -319,112 +319,269 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
     ...(asOfDate ? [`As of ${asOfDate}`] : []),
   ].join(" | ");
 
+  const dateStamp = new Date().toISOString().substring(0, 10);
+  const exportStr = new Date().toLocaleString("en-GB");
+
+  // ── Excel ─────────────────────────────────────────────────────
   const exportToExcel = () => {
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lendingCountrySummary.map((r) => ({
+
+    // Sheet 1: Summary KPIs
+    const summaryRows = [
+      ["Loans & Transfers — Country Summary Report"],
+      [`Exported: ${exportStr}`],
+      ...(activeFilterLabel ? [[`Filters: ${activeFilterLabel}`]] : []),
+      [],
+      ["KPI", "Value"],
+      ["Lending Countries", kpis.lendingCountries],
+      ["Borrowing Countries", kpis.borrowingCountries],
+      ["Cumulative Interest", +kpis.cumulativeInterest.toFixed(2)],
+      ["Cumulative Principal", +kpis.cumulativePrincipal.toFixed(2)],
+      ["Cumulative Fees", +kpis.cumulativeFees.toFixed(2)],
+      ["Cumulative Total", +kpis.cumulativeTotal.toFixed(2)],
+    ];
+    const summaryWs = XLSX.utils.aoa_to_sheet(summaryRows);
+    summaryWs["!cols"] = [{ wch: 30 }, { wch: 20 }];
+    XLSX.utils.book_append_sheet(wb, summaryWs, "Summary");
+
+    // Sheet 2: Lending Country Summary
+    const lendingWs = XLSX.utils.json_to_sheet(lendingCountrySummary.map((r) => ({
       "Lending Country": r.country,
       "Cumulative Interest": +r.cumulativeInterest.toFixed(2),
       "Cumulative Principal": +r.cumulativePrincipal.toFixed(2),
       "Cumulative Fees": +r.cumulativeFees.toFixed(2),
       "Cumulative Total": +r.cumulativeTotal.toFixed(2),
-    }))), "Lending Country Summary");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(borrowingCountrySummary.map((r) => ({
+    })));
+    lendingWs["!cols"] = [{ wch: 24 }, { wch: 20 }, { wch: 22 }, { wch: 18 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, lendingWs, "Lending Country Summary");
+
+    // Sheet 3: Borrowing Country Summary
+    const borrowingWs = XLSX.utils.json_to_sheet(borrowingCountrySummary.map((r) => ({
       "Borrowing Country": r.country,
       "Cumulative Interest": +r.cumulativeInterest.toFixed(2),
       "Cumulative Principal": +r.cumulativePrincipal.toFixed(2),
       "Cumulative Fees": +r.cumulativeFees.toFixed(2),
       "Cumulative Total": +r.cumulativeTotal.toFixed(2),
-    }))), "Borrowing Country Summary");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(loanDetailSummary.map((r) => ({
+    })));
+    borrowingWs["!cols"] = [{ wch: 24 }, { wch: 20 }, { wch: 22 }, { wch: 18 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, borrowingWs, "Borrowing Country Summary");
+
+    // Sheet 4: Loan Detail Summary
+    const detailWs = XLSX.utils.json_to_sheet(loanDetailSummary.map((r) => ({
       "Lending Country": r.lendingCountry,
       "Borrowing Country": r.borrowingCountry,
       "Loan Facility": r.loanFacility,
-      Lender: r.lender,
-      Borrower: r.borrower,
+      "Lender": r.lender,
+      "Borrower": r.borrower,
       "Cumulative Principal": +r.cumulativePrincipal.toFixed(2),
       "Cumulative Interest": +r.cumulativeInterest.toFixed(2),
       "Cumulative Fees": +r.cumulativeFees.toFixed(2),
       "Cumulative Total": +r.cumulativeTotal.toFixed(2),
-    }))), "Loan Detail Summary");
-    XLSX.writeFile(wb, "country_summary_report.xlsx");
+    })));
+    detailWs["!cols"] = [{ wch: 20 }, { wch: 20 }, { wch: 26 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, detailWs, "Loan Detail Summary");
+
+    XLSX.writeFile(wb, `country_summary_report_${dateStamp}.xlsx`);
   };
 
+  // ── PDF ───────────────────────────────────────────────────────
   const exportToPDF = () => {
     const doc = new jsPDF({ orientation: "landscape" });
     const pageW = doc.internal.pageSize.getWidth();
-    const exportStr = new Date().toLocaleString("en-GB");
+    const pageH = doc.internal.pageSize.getHeight();
 
-    doc.setFontSize(16);
-    doc.text("Loans & Transfers — Country Summary Report", 14, 16);
-    doc.setFontSize(9);
+    // Shared table styles
+    const headStyles = { fillColor: [79, 70, 229] as [number, number, number], textColor: [255, 255, 255] as [number, number, number], fontStyle: "bold" as const, fontSize: 8 };
+    const altRowStyles = { fillColor: [238, 242, 255] as [number, number, number] };
+    const numCols = (indices: number[]) => Object.fromEntries(indices.map((i) => [i, { halign: "right" as const }]));
+
+    // Header on page 1
+    doc.setFontSize(18);
+    doc.setTextColor(79, 70, 229);
+    doc.setFont("helvetica", "bold");
+    doc.text("Loans & Transfers", 14, 16);
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    doc.text("Country Summary Report", 14, 23);
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
     doc.text(exportStr, pageW - 14, 16, { align: "right" });
+    if (activeFilterLabel) doc.text(`Filters: ${activeFilterLabel}`, pageW - 14, 22, { align: "right" });
 
-    let y = 24;
-    if (activeFilterLabel) {
-      doc.text(`Filters: ${activeFilterLabel}`, 14, y);
-      y += 7;
+    // KPI summary table
+    doc.setTextColor(0, 0, 0);
+    let y = 30;
+    autoTable(doc, {
+      startY: y,
+      head: [["Lending Countries", "Borrowing Countries", "Cumulative Interest", "Cumulative Principal", "Cumulative Fees", "Cumulative Total"]],
+      body: [[
+        String(kpis.lendingCountries),
+        String(kpis.borrowingCountries),
+        fmt(kpis.cumulativeInterest),
+        fmt(kpis.cumulativePrincipal),
+        fmt(kpis.cumulativeFees),
+        fmt(kpis.cumulativeTotal),
+      ]],
+      headStyles: { ...headStyles, halign: "center" },
+      bodyStyles: { halign: "center", fontStyle: "bold", fontSize: 9 },
+      margin: { left: 14, right: 14 },
+    });
+
+    // Table 1: Lending Country Summary
+    y = (doc as any).lastAutoTable.finalY + 8;
+    doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.setTextColor(79, 70, 229);
+    doc.text("Lending Country Summary", 14, y); y += 4;
+    doc.setFont("helvetica", "normal"); doc.setTextColor(0, 0, 0);
+    autoTable(doc, {
+      startY: y,
+      head: [["Lending Country", "Cumulative Interest", "Cumulative Principal", "Cumulative Fees", "Cumulative Total"]],
+      body: lendingCountrySummary.map((r) => [r.country, fmt(r.cumulativeInterest), fmt(r.cumulativePrincipal), fmt(r.cumulativeFees), fmt(r.cumulativeTotal)]),
+      headStyles, alternateRowStyles: altRowStyles,
+      columnStyles: numCols([1, 2, 3, 4]),
+      styles: { fontSize: 8 }, margin: { left: 14, right: 14 },
+    });
+
+    // Table 2: Borrowing Country Summary
+    y = (doc as any).lastAutoTable.finalY + 8;
+    if (y > pageH - 50) { doc.addPage(); y = 14; }
+    doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.setTextColor(79, 70, 229);
+    doc.text("Borrowing Country Summary", 14, y); y += 4;
+    doc.setFont("helvetica", "normal"); doc.setTextColor(0, 0, 0);
+    autoTable(doc, {
+      startY: y,
+      head: [["Borrowing Country", "Cumulative Interest", "Cumulative Principal", "Cumulative Fees", "Cumulative Total"]],
+      body: borrowingCountrySummary.map((r) => [r.country, fmt(r.cumulativeInterest), fmt(r.cumulativePrincipal), fmt(r.cumulativeFees), fmt(r.cumulativeTotal)]),
+      headStyles, alternateRowStyles: altRowStyles,
+      columnStyles: numCols([1, 2, 3, 4]),
+      styles: { fontSize: 8 }, margin: { left: 14, right: 14 },
+    });
+
+    // Table 3: Loan Detail Summary — always new page
+    doc.addPage();
+    y = 14;
+    doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.setTextColor(79, 70, 229);
+    doc.text("Loan Detail Summary", 14, y); y += 4;
+    doc.setFont("helvetica", "normal"); doc.setTextColor(0, 0, 0);
+    autoTable(doc, {
+      startY: y,
+      head: [["Lending Country", "Borrowing Country", "Loan Facility", "Lender", "Borrower", "Cum. Principal", "Cum. Interest", "Cum. Fees", "Cum. Total"]],
+      body: loanDetailSummary.map((r) => [r.lendingCountry, r.borrowingCountry, r.loanFacility, r.lender, r.borrower, fmt(r.cumulativePrincipal), fmt(r.cumulativeInterest), fmt(r.cumulativeFees), fmt(r.cumulativeTotal)]),
+      headStyles, alternateRowStyles: altRowStyles,
+      columnStyles: numCols([5, 6, 7, 8]),
+      styles: { fontSize: 7 }, margin: { left: 14, right: 14 },
+    });
+
+    // Page numbers
+    const totalPg = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= totalPg; i++) {
+      doc.setPage(i);
+      doc.setFontSize(7); doc.setTextColor(150, 150, 150);
+      doc.text("Loans & Transfers — Country Summary Report", 14, pageH - 6);
+      doc.text(`Page ${i} of ${totalPg}`, pageW - 14, pageH - 6, { align: "right" });
     }
-    doc.text(
-      `Lending Countries: ${kpis.lendingCountries}  |  Borrowing Countries: ${kpis.borrowingCountries}  |  Cumulative Interest: ${fmt(kpis.cumulativeInterest)}  |  Cumulative Principal: ${fmt(kpis.cumulativePrincipal)}  |  Cumulative Fees: ${fmt(kpis.cumulativeFees)}  |  Cumulative Total: ${fmt(kpis.cumulativeTotal)}`,
-      14, y
-    );
-    y += 8;
 
-    const countryCols = ["Country", "Cum. Interest", "Cum. Principal", "Cum. Fees", "Cum. Total"];
-    doc.setFontSize(11); doc.text("Lending Country Summary", 14, y); y += 4;
-    autoTable(doc, { startY: y, head: [countryCols], body: lendingCountrySummary.map((r) => [r.country, fmt(r.cumulativeInterest), fmt(r.cumulativePrincipal), fmt(r.cumulativeFees), fmt(r.cumulativeTotal)]), styles: { fontSize: 8 } });
-
-    y = (doc as any).lastAutoTable.finalY + 10;
-    doc.setFontSize(11); doc.text("Borrowing Country Summary", 14, y); y += 4;
-    autoTable(doc, { startY: y, head: [countryCols], body: borrowingCountrySummary.map((r) => [r.country, fmt(r.cumulativeInterest), fmt(r.cumulativePrincipal), fmt(r.cumulativeFees), fmt(r.cumulativeTotal)]), styles: { fontSize: 8 } });
-
-    y = (doc as any).lastAutoTable.finalY + 10;
-    doc.setFontSize(11); doc.text("Loan Detail Summary", 14, y); y += 4;
-    autoTable(doc, { startY: y, head: [["Lending Country", "Borrowing Country", "Loan Facility", "Lender", "Borrower", "Cum. Principal", "Cum. Interest", "Cum. Fees", "Cum. Total"]], body: loanDetailSummary.map((r) => [r.lendingCountry, r.borrowingCountry, r.loanFacility, r.lender, r.borrower, fmt(r.cumulativePrincipal), fmt(r.cumulativeInterest), fmt(r.cumulativeFees), fmt(r.cumulativeTotal)]), styles: { fontSize: 7 } });
-
-    doc.save("country_summary_report.pdf");
+    doc.save(`country_summary_report_${dateStamp}.pdf`);
   };
 
+  // ── PPT ───────────────────────────────────────────────────────
   const exportToPPT = () => {
     const pptx = new PptxGenJS();
     pptx.layout = "LAYOUT_WIDE";
 
-    const summarySlide = pptx.addSlide();
-    summarySlide.addText("Loans & Transfers — Report Summary", { x: 0.5, y: 0.8, w: 12, h: 0.7, fontSize: 26, bold: true, color: "003366", align: "center" });
-    if (activeFilterLabel) summarySlide.addText(`Filters: ${activeFilterLabel}`, { x: 0.5, y: 1.7, w: 12, h: 0.4, fontSize: 11, color: "666666", align: "center" });
-    summarySlide.addText(`Cumulative Total: ${fmt(kpis.cumulativeTotal)}`, { x: 0.5, y: 2.4, w: 12, h: 0.6, fontSize: 22, bold: true, color: "003366", align: "center" });
-    summarySlide.addText(
+    const IND = "4F46E5";
+    const WHT = "FFFFFF";
+    const DRK = "1E293B";
+    const SLT = "F8FAFC";
+    const GRY = "64748B";
+
+    // Header cell factory
+    const hdr = (text: string, align: "left" | "right" | "center" = "left") => ({
+      text,
+      options: { bold: true, fontSize: 8, color: WHT, fill: { color: IND }, align, valign: "middle" as const, border: { type: "solid" as const, color: "3730A3", pt: 1 } },
+    });
+
+    // Data cell factory
+    const cel = (text: string, right = false, alt = false) => ({
+      text,
+      options: { fontSize: 8, color: DRK, align: (right ? "right" : "left") as "left" | "right", valign: "middle" as const, fill: { color: alt ? SLT : WHT }, border: { type: "solid" as const, color: "E2E8F0", pt: 1 } },
+    });
+
+    // ── Slide 1: Cover ──
+    const cover = pptx.addSlide();
+    cover.background = { color: IND };
+    cover.addText("Loans & Transfers", { x: 0.5, y: 1.4, w: 12.4, h: 0.8, fontSize: 36, bold: true, color: WHT, align: "center" });
+    cover.addText("Country Summary Report", { x: 0.5, y: 2.3, w: 12.4, h: 0.6, fontSize: 20, color: "C7D2FE", align: "center" });
+    if (activeFilterLabel) cover.addText(`Filters: ${activeFilterLabel}`, { x: 0.5, y: 3.1, w: 12.4, h: 0.35, fontSize: 10, color: "A5B4FC", align: "center" });
+    cover.addText(exportStr, { x: 0.5, y: 6.8, w: 12.4, h: 0.3, fontSize: 9, color: "818CF8", align: "center" });
+
+    // ── Slide 2: KPI Summary ──
+    const kpiSlide = pptx.addSlide();
+    kpiSlide.addText("Report Summary", { x: 0.4, y: 0.15, w: 12.5, h: 0.5, fontSize: 20, bold: true, color: IND });
+    kpiSlide.addTable(
       [
-        `Lending Countries: ${kpis.lendingCountries}     Borrowing Countries: ${kpis.borrowingCountries}`,
-        `Cumulative Interest: ${fmt(kpis.cumulativeInterest)}`,
-        `Cumulative Principal: ${fmt(kpis.cumulativePrincipal)}`,
-        `Cumulative Fees: ${fmt(kpis.cumulativeFees)}`,
-      ].join("\n"),
-      { x: 0.5, y: 3.3, w: 12, h: 2.5, fontSize: 14, color: "555555", align: "center" }
+        [hdr("Borrowing Countries", "center"), hdr("Lending Countries", "center"), hdr("Cumulative Interest", "center"), hdr("Cumulative Principal", "center"), hdr("Cumulative Fees", "center"), hdr("Cumulative Total", "center")],
+        [cel(String(kpis.borrowingCountries), true), cel(String(kpis.lendingCountries), true), cel(fmt(kpis.cumulativeInterest), true), cel(fmt(kpis.cumulativePrincipal), true), cel(fmt(kpis.cumulativeFees), true), cel(fmt(kpis.cumulativeTotal), true)],
+      ] as any,
+      { x: 0.4, y: 0.85, w: 12.5, h: 1.1, colW: [2.15, 2.15, 2.1, 2.15, 2.1, 2.1], fontSize: 12 }
+    );
+    kpiSlide.addText(`Generated: ${exportStr}${activeFilterLabel ? `   |   Filters: ${activeFilterLabel}` : ""}`, { x: 0.4, y: 7.0, w: 12.5, h: 0.3, fontSize: 8, color: GRY });
+
+    // ── Slide 3: Lending Country Summary ──
+    const lSlide = pptx.addSlide();
+    lSlide.addText("Lending Country Summary", { x: 0.4, y: 0.15, w: 12.5, h: 0.5, fontSize: 18, bold: true, color: IND });
+    lSlide.addTable(
+      [
+        [hdr("Lending Country"), hdr("Cumulative Interest", "right"), hdr("Cumulative Principal", "right"), hdr("Cumulative Fees", "right"), hdr("Cumulative Total", "right")],
+        ...lendingCountrySummary.map((r, i) => [
+          cel(r.country, false, i % 2 === 1),
+          cel(fmt(r.cumulativeInterest), true, i % 2 === 1),
+          cel(fmt(r.cumulativePrincipal), true, i % 2 === 1),
+          cel(fmt(r.cumulativeFees), true, i % 2 === 1),
+          cel(fmt(r.cumulativeTotal), true, i % 2 === 1),
+        ]),
+      ] as any,
+      { x: 0.4, y: 0.82, w: 12.5, h: 6.2, colW: [3.5, 2.4, 2.4, 2.0, 2.2] }
     );
 
-    const lendingSlide = pptx.addSlide();
-    lendingSlide.addText("Lending Country Summary", { x: 0.4, y: 0.2, w: 12, h: 0.5, fontSize: 18, bold: true });
-    lendingSlide.addTable([
-      [{ text: "Lending Country" }, { text: "Cum. Interest" }, { text: "Cum. Principal" }, { text: "Cum. Fees" }, { text: "Cum. Total" }],
-      ...lendingCountrySummary.map((r) => [{ text: r.country }, { text: fmt(r.cumulativeInterest) }, { text: fmt(r.cumulativePrincipal) }, { text: fmt(r.cumulativeFees) }, { text: fmt(r.cumulativeTotal) }]),
-    ] as any, { x: 0.4, y: 0.9, w: 12.5, h: 5.5, fontSize: 10, border: { type: "solid", color: "D9D9D9", pt: 1 } });
+    // ── Slide 4: Borrowing Country Summary ──
+    const bSlide = pptx.addSlide();
+    bSlide.addText("Borrowing Country Summary", { x: 0.4, y: 0.15, w: 12.5, h: 0.5, fontSize: 18, bold: true, color: IND });
+    bSlide.addTable(
+      [
+        [hdr("Borrowing Country"), hdr("Cumulative Interest", "right"), hdr("Cumulative Principal", "right"), hdr("Cumulative Fees", "right"), hdr("Cumulative Total", "right")],
+        ...borrowingCountrySummary.map((r, i) => [
+          cel(r.country, false, i % 2 === 1),
+          cel(fmt(r.cumulativeInterest), true, i % 2 === 1),
+          cel(fmt(r.cumulativePrincipal), true, i % 2 === 1),
+          cel(fmt(r.cumulativeFees), true, i % 2 === 1),
+          cel(fmt(r.cumulativeTotal), true, i % 2 === 1),
+        ]),
+      ] as any,
+      { x: 0.4, y: 0.82, w: 12.5, h: 6.2, colW: [3.5, 2.4, 2.4, 2.0, 2.2] }
+    );
 
-    const borrowingSlide = pptx.addSlide();
-    borrowingSlide.addText("Borrowing Country Summary", { x: 0.4, y: 0.2, w: 12, h: 0.5, fontSize: 18, bold: true });
-    borrowingSlide.addTable([
-      [{ text: "Borrowing Country" }, { text: "Cum. Interest" }, { text: "Cum. Principal" }, { text: "Cum. Fees" }, { text: "Cum. Total" }],
-      ...borrowingCountrySummary.map((r) => [{ text: r.country }, { text: fmt(r.cumulativeInterest) }, { text: fmt(r.cumulativePrincipal) }, { text: fmt(r.cumulativeFees) }, { text: fmt(r.cumulativeTotal) }]),
-    ] as any, { x: 0.4, y: 0.9, w: 12.5, h: 5.5, fontSize: 10, border: { type: "solid", color: "D9D9D9", pt: 1 } });
+    // ── Slide 5: Loan Detail Summary ──
+    const dSlide = pptx.addSlide();
+    dSlide.addText("Loan Detail Summary", { x: 0.4, y: 0.15, w: 12.5, h: 0.5, fontSize: 18, bold: true, color: IND });
+    dSlide.addTable(
+      [
+        [hdr("Lending Country"), hdr("Borrowing Country"), hdr("Loan Facility"), hdr("Lender"), hdr("Borrower"), hdr("Cum. Principal", "right"), hdr("Cum. Interest", "right"), hdr("Cum. Fees", "right"), hdr("Cum. Total", "right")],
+        ...loanDetailSummary.map((r, i) => [
+          cel(r.lendingCountry, false, i % 2 === 1),
+          cel(r.borrowingCountry, false, i % 2 === 1),
+          cel(r.loanFacility, false, i % 2 === 1),
+          cel(r.lender, false, i % 2 === 1),
+          cel(r.borrower, false, i % 2 === 1),
+          cel(fmt(r.cumulativePrincipal), true, i % 2 === 1),
+          cel(fmt(r.cumulativeInterest), true, i % 2 === 1),
+          cel(fmt(r.cumulativeFees), true, i % 2 === 1),
+          cel(fmt(r.cumulativeTotal), true, i % 2 === 1),
+        ]),
+      ] as any,
+      { x: 0.2, y: 0.82, w: 13.2, h: 6.2, colW: [1.7, 1.7, 2.1, 1.5, 1.5, 1.5, 1.5, 1.2, 1.5] }
+    );
 
-    const detailSlide = pptx.addSlide();
-    detailSlide.addText("Loan Detail Summary", { x: 0.4, y: 0.2, w: 12, h: 0.5, fontSize: 18, bold: true });
-    detailSlide.addTable([
-      [{ text: "Lending Country" }, { text: "Borrowing Country" }, { text: "Loan Facility" }, { text: "Lender" }, { text: "Borrower" }, { text: "Cum. Principal" }, { text: "Cum. Interest" }, { text: "Cum. Fees" }, { text: "Cum. Total" }],
-      ...loanDetailSummary.map((r) => [{ text: r.lendingCountry }, { text: r.borrowingCountry }, { text: r.loanFacility }, { text: r.lender }, { text: r.borrower }, { text: fmt(r.cumulativePrincipal) }, { text: fmt(r.cumulativeInterest) }, { text: fmt(r.cumulativeFees) }, { text: fmt(r.cumulativeTotal) }]),
-    ] as any, { x: 0.2, y: 0.9, w: 13.2, h: 5.8, fontSize: 7, border: { type: "solid", color: "D9D9D9", pt: 1 } });
-
-    void pptx.writeFile({ fileName: "country_summary_report.pptx" });
+    void pptx.writeFile({ fileName: `country_summary_report_${dateStamp}.pptx` });
   };
 
   // ── Style helpers ─────────────────────────────────────────────
@@ -452,7 +609,7 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
   const tdRCls = "px-4 py-3.5 text-sm text-right tabular-nums";
   const trCls = `border-t transition-colors ${isDarkMode ? "border-gray-700 hover:bg-white/5" : "border-gray-200 hover:bg-slate-50"}`;
   const theadCls = isDarkMode ? "bg-gray-700/80" : "bg-slate-100";
-  const tableCls = `overflow-x-auto rounded-xl border shadow-sm ${isDarkMode ? "border-gray-700/80 bg-gray-900/40" : "border-gray-200 bg-white"}`;
+  const tableCls = `w-full overflow-x-auto rounded-xl border shadow-sm ${isDarkMode ? "border-gray-700/80 bg-gray-900/40" : "border-gray-200 bg-white"}`;
 
   // ── Pagination sub-component ──────────────────────────────────
   const btnPageCls = (disabled: boolean) =>
@@ -515,7 +672,7 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
 
   // ─────────────────────────────────────────────────────────────
   return (
-    <div className={`rounded-2xl border p-5 sm:p-6 shadow-[0_10px_35px_rgba(2,6,23,0.12)] w-[92%] ${
+    <div className={`w-full min-w-0 rounded-2xl border p-5 sm:p-6 shadow-[0_10px_35px_rgba(2,6,23,0.12)] ${
       isDarkMode ? "bg-gray-900/80 border-gray-700/80 backdrop-blur" : "bg-white/90 border-gray-200"
     }`}>
       <div className={`rounded-2xl p-4 sm:p-6 w-full min-w-0 ${isDarkMode ? "bg-gray-800/90" : "bg-gray-50/90"}`}>

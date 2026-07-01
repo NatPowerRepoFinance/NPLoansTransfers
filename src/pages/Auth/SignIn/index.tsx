@@ -108,8 +108,12 @@ const AuthLogin = () => {
               "user_email",
               String(result.data.email ?? response.account?.username ?? ""),
             );
-            localStorage.setItem("user_role", String(result.data.role ?? ""));
-            localStorage.setItem("user_country", String(result.data.country ?? ""));
+            const assignedCountry = String(result.data.country ?? "").trim();
+            const assignedRole = String(result.data.role ?? "").trim();
+            // Users with no country assigned are restricted to view-only access.
+            const effectiveRole = assignedCountry ? assignedRole : "Viewer";
+            localStorage.setItem("user_role", effectiveRole);
+            localStorage.setItem("user_country", assignedCountry);
 
             // Keep existing admin flag behavior, but route to home when poAccessToken is available.
             if (isAdminIntent) {
