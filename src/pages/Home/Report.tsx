@@ -3,7 +3,12 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import PptxGenJS from "pptxgenjs";
-import { getCountrySummaryLoansReport, getCountrySummaryReport } from "@/api";
+import {
+  getBorrowerSummaryReport,
+  getCountrySummaryLoansReport,
+  getCountrySummaryReport,
+  getLenderSummaryReport,
+} from "@/api";
 
 type ScheduleRow = {
   startDate?: string;
@@ -43,6 +48,14 @@ type Totals = {
 };
 
 type CountryRow = Totals & { country: string };
+
+type NameSummaryRow = {
+  name: string;
+  cumulativeInterest: number;
+  cumulativePrincipal: number;
+  cumulativeFees: number;
+  cumulativeTotal: number;
+};
 
 type LoanDetailRow = Totals & {
   lendingCountry: string;
@@ -94,7 +107,7 @@ function computeRowTotals(loan: Loan, rows: ScheduleRow[]): Totals {
 export default function ReportTab({ isDarkMode, loans, companies }: ReportTabProps) {
   // ── API fallback data ─────────────────────────────────────────
   const [apiCountrySummary, setApiCountrySummary] = useState<
-    Array<{ country: string; cumulativeInterest: number; cumulativePrincipal: number; total: number }>
+    Array<{ country: string; cumulativeInterest: number; cumulativePrincipal: number; cumulativeTotal: number }>
   >([]);
   const [apiLoanDetailSummary, setApiLoanDetailSummary] = useState<
     Array<{
@@ -104,9 +117,13 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
       borrower: string;
       cumulativePrincipal: number;
       cumulativeInterest: number;
-      total: number;
+      cumulativeFees: number;
+      cumulativeTotal: number;
     }>
   >([]);
+
+  const [borrowerSummary, setBorrowerSummary] = useState<NameSummaryRow[]>([]);
+  const [lenderSummary, setLenderSummary] = useState<NameSummaryRow[]>([]);
 
   useEffect(() => {
     const token = localStorage.getItem("poAccessToken");
@@ -114,9 +131,6 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
     let cancelled = false;
     getCountrySummaryReport(token)
       .then((rows) => { if (!cancelled) setApiCountrySummary(rows); })
-      .catch(() => {});
-    getCountrySummaryLoansReport(token)
-      .then((rows) => { if (!cancelled) setApiLoanDetailSummary(rows); })
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
@@ -126,6 +140,8 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
   const [showLendingCountrySummary, setShowLendingCountrySummary] = useState(true);
   const [showBorrowingCountrySummary, setShowBorrowingCountrySummary] = useState(true);
   const [showLoanDetailSummary, setShowLoanDetailSummary] = useState(true);
+  const [showBorrowerSummary, setShowBorrowerSummary] = useState(true);
+  const [showLenderSummary, setShowLenderSummary] = useState(true);
 
   // ── Filter state ──────────────────────────────────────────────
   const [countryMode, setCountryMode] = useState<"lender" | "borrower">("borrower");
@@ -133,6 +149,34 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
   const [asOfDate, setAsOfDate] = useState("");
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // ── Borrower / Lender summary date range ───────────────────────
+  const [summaryStartDate, setSummaryStartDate] = useState("");
+  const [summaryEndDate, setSummaryEndDate] = useState("");
+
+  useEffect(() => {
+    const token = localStorage.getItem("poAccessToken");
+    if (!token) return;
+    let cancelled = false;
+    getBorrowerSummaryReport(token, summaryStartDate || undefined, summaryEndDate || undefined)
+      .then((rows) => {
+        if (!cancelled) {
+          setBorrowerSummary(rows.map((r) => ({ name: r.borrower, cumulativeInterest: r.cumulativeInterest, cumulativePrincipal: r.cumulativePrincipal, cumulativeFees: r.cumulativeFees, cumulativeTotal: r.cumulativeTotal })));
+        }
+      })
+      .catch(() => {});
+    getLenderSummaryReport(token, summaryStartDate || undefined, summaryEndDate || undefined)
+      .then((rows) => {
+        if (!cancelled) {
+          setLenderSummary(rows.map((r) => ({ name: r.lender, cumulativeInterest: r.cumulativeInterest, cumulativePrincipal: r.cumulativePrincipal, cumulativeFees: r.cumulativeFees, cumulativeTotal: r.cumulativeTotal })));
+        }
+      })
+      .catch(() => {});
+    getCountrySummaryLoansReport(token, summaryStartDate || undefined, summaryEndDate || undefined)
+      .then((rows) => { if (!cancelled) setApiLoanDetailSummary(rows); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [summaryStartDate, summaryEndDate]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -165,8 +209,13 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
       return next;
     });
 
-  const clearFilters = () => { setSelectedCountries(new Set()); setAsOfDate(""); };
-  const hasActiveFilters = selectedCountries.size > 0 || !!asOfDate;
+  const clearFilters = () => {
+    setSelectedCountries(new Set());
+    setAsOfDate("");
+    setSummaryStartDate("");
+    setSummaryEndDate("");
+  };
+  const hasActiveFilters = selectedCountries.size > 0 || !!asOfDate || !!summaryStartDate || !!summaryEndDate;
 
   // ── Filtered loans ────────────────────────────────────────────
   const filteredLoans = useMemo(() => {
@@ -185,26 +234,6 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
       return !end || end <= asOfDate;
     });
   };
-
-  // ── KPI aggregates ────────────────────────────────────────────
-  const kpis = useMemo(() => {
-    const lenders = new Set<string>();
-    const borrowers = new Set<string>();
-    let cumulativeInterest = 0, cumulativePrincipal = 0, cumulativeTotal = 0, cumulativeFees = 0;
-    for (const loan of filteredLoans) {
-      const lc = companies.find((c) => c.id === loan.lenderCompanyId)?.country?.trim();
-      const bc = companies.find((c) => c.id === loan.borrowerCompanyId)?.country?.trim();
-      if (lc) lenders.add(lc);
-      if (bc) borrowers.add(bc);
-      const t = computeRowTotals(loan, filterSchedule(Array.isArray(loan.schedule) ? loan.schedule : []));
-      cumulativeInterest += t.cumulativeInterest;
-      cumulativePrincipal += t.cumulativePrincipal;
-      cumulativeTotal += t.cumulativeTotal;
-      cumulativeFees += t.cumulativeFees;
-    }
-    return { lendingCountries: lenders.size, borrowingCountries: borrowers.size, cumulativeInterest, cumulativePrincipal, cumulativeTotal, cumulativeFees };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredLoans, companies, asOfDate]);
 
   // ── Lending Country Summary (Table 1) ─────────────────────────
   const lendingCountrySummary = useMemo<CountryRow[]>(() => {
@@ -262,23 +291,30 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
       };
     });
 
-    // Supplement with API data for loans without local schedules
+    // The country-summary/loans API is the authoritative, date-range-aware source
+    // (it respects the "Summary from/to" filter) — prefer its cumulative values
+    // over the local schedule computation whenever a matching loan facility is returned,
+    // rather than only filling in loans that have no locally-loaded schedule.
     const merged = [...computed];
     for (const apiRow of apiLoanDetailSummary) {
       const idx = merged.findIndex((m) => m.loanFacility === apiRow.loanFacility);
-      const src = loans.find((l) => l.name === apiRow.loanFacility);
-      const hasSchedule = src && Array.isArray(src.schedule) && src.schedule.length > 0;
       if (idx === -1) {
         merged.push({
           lendingCountry: apiRow.country, borrowingCountry: "-",
           loanFacility: apiRow.loanFacility, lender: apiRow.lender, borrower: apiRow.borrower,
           cumulativePrincipal: apiRow.cumulativePrincipal ?? 0,
           cumulativeInterest: apiRow.cumulativeInterest ?? 0,
-          cumulativeTotal: apiRow.total ?? 0,
-          cumulativeFees: 0,
+          cumulativeFees: apiRow.cumulativeFees ?? 0,
+          cumulativeTotal: apiRow.cumulativeTotal ?? 0,
         });
-      } else if (!hasSchedule) {
-        merged[idx] = { ...merged[idx], cumulativePrincipal: apiRow.cumulativePrincipal ?? 0, cumulativeInterest: apiRow.cumulativeInterest ?? 0, cumulativeTotal: apiRow.total ?? 0 };
+      } else {
+        merged[idx] = {
+          ...merged[idx],
+          cumulativePrincipal: apiRow.cumulativePrincipal ?? 0,
+          cumulativeInterest: apiRow.cumulativeInterest ?? 0,
+          cumulativeFees: apiRow.cumulativeFees ?? 0,
+          cumulativeTotal: apiRow.cumulativeTotal ?? 0,
+        };
       }
     }
 
@@ -288,16 +324,43 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
         : a.lendingCountry.localeCompare(b.lendingCountry)
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredLoans, companies, asOfDate, apiLoanDetailSummary, loans]);
+  }, [filteredLoans, companies, asOfDate, apiLoanDetailSummary]);
+
+  // ── KPI aggregates ────────────────────────────────────────────
+  // Sums the already-merged Loan Detail Summary rows so loans without a locally-loaded
+  // schedule (only known via the country-summary API) still contribute to the totals.
+  const kpis = useMemo(() => {
+    const lenders = new Set<string>();
+    const borrowers = new Set<string>();
+    let cumulativeInterest = 0, cumulativePrincipal = 0, cumulativeTotal = 0, cumulativeFees = 0;
+    for (const row of loanDetailSummary) {
+      if (row.lendingCountry && row.lendingCountry !== "Unknown") lenders.add(row.lendingCountry);
+      if (row.borrowingCountry && row.borrowingCountry !== "Unknown" && row.borrowingCountry !== "-") borrowers.add(row.borrowingCountry);
+      cumulativeInterest += row.cumulativeInterest;
+      cumulativePrincipal += row.cumulativePrincipal;
+      cumulativeTotal += row.cumulativeTotal;
+      cumulativeFees += row.cumulativeFees;
+    }
+    return { lendingCountries: lenders.size, borrowingCountries: borrowers.size, cumulativeInterest, cumulativePrincipal, cumulativeTotal, cumulativeFees };
+  }, [loanDetailSummary]);
 
   // ── Pagination ────────────────────────────────────────────────
   const [lendingPage, setLendingPage] = useState(0);
   const [borrowingPage, setBorrowingPage] = useState(0);
   const [loanDetailPage, setLoanDetailPage] = useState(0);
+  const [borrowerPage, setBorrowerPage] = useState(0);
+  const [lenderPage, setLenderPage] = useState(0);
 
   const lendingTotalPages = Math.max(1, Math.ceil(lendingCountrySummary.length / PAGE_SIZE));
   const borrowingTotalPages = Math.max(1, Math.ceil(borrowingCountrySummary.length / PAGE_SIZE));
   const loanDetailTotalPages = Math.max(1, Math.ceil(loanDetailSummary.length / PAGE_SIZE));
+  const borrowerTotalPages = Math.max(1, Math.ceil(borrowerSummary.length / PAGE_SIZE));
+  const lenderTotalPages = Math.max(1, Math.ceil(lenderSummary.length / PAGE_SIZE));
+
+  useEffect(() => setBorrowerPage((p) => Math.min(p, borrowerTotalPages - 1)), [borrowerTotalPages]);
+  useEffect(() => setLenderPage((p) => Math.min(p, lenderTotalPages - 1)), [lenderTotalPages]);
+  const pagedBorrower = borrowerSummary.slice(borrowerPage * PAGE_SIZE, (borrowerPage + 1) * PAGE_SIZE);
+  const pagedLender = lenderSummary.slice(lenderPage * PAGE_SIZE, (lenderPage + 1) * PAGE_SIZE);
 
   useEffect(() => setLendingPage((p) => Math.min(p, lendingTotalPages - 1)), [lendingTotalPages]);
   useEffect(() => setBorrowingPage((p) => Math.min(p, borrowingTotalPages - 1)), [borrowingTotalPages]);
@@ -327,59 +390,98 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
     const wb = XLSX.utils.book_new();
 
     // Sheet 1: Summary KPIs
-    const summaryRows = [
-      ["Loans & Transfers — Country Summary Report"],
-      [`Exported: ${exportStr}`],
-      ...(activeFilterLabel ? [[`Filters: ${activeFilterLabel}`]] : []),
-      [],
-      ["KPI", "Value"],
-      ["Lending Countries", kpis.lendingCountries],
-      ["Borrowing Countries", kpis.borrowingCountries],
-      ["Cumulative Interest", +kpis.cumulativeInterest.toFixed(2)],
-      ["Cumulative Principal", +kpis.cumulativePrincipal.toFixed(2)],
-      ["Cumulative Fees", +kpis.cumulativeFees.toFixed(2)],
-      ["Cumulative Total", +kpis.cumulativeTotal.toFixed(2)],
-    ];
-    const summaryWs = XLSX.utils.aoa_to_sheet(summaryRows);
-    summaryWs["!cols"] = [{ wch: 30 }, { wch: 20 }];
-    XLSX.utils.book_append_sheet(wb, summaryWs, "Summary");
+    if (showPanelSummary) {
+      const summaryRows = [
+        ["Loans & Transfers — Country Summary Report"],
+        [`Exported: ${exportStr}`],
+        ...(activeFilterLabel ? [[`Filters: ${activeFilterLabel}`]] : []),
+        [],
+        ["KPI", "Value"],
+        ["Lending Countries", kpis.lendingCountries],
+        ["Borrowing Countries", kpis.borrowingCountries],
+        ["Cumulative Interest", +kpis.cumulativeInterest.toFixed(2)],
+        ["Cumulative Principal", +kpis.cumulativePrincipal.toFixed(2)],
+        ["Cumulative Fees", +kpis.cumulativeFees.toFixed(2)],
+        ["Cumulative Total", +kpis.cumulativeTotal.toFixed(2)],
+      ];
+      const summaryWs = XLSX.utils.aoa_to_sheet(summaryRows);
+      summaryWs["!cols"] = [{ wch: 30 }, { wch: 20 }];
+      XLSX.utils.book_append_sheet(wb, summaryWs, "Summary");
+    }
 
     // Sheet 2: Lending Country Summary
-    const lendingWs = XLSX.utils.json_to_sheet(lendingCountrySummary.map((r) => ({
-      "Lending Country": r.country,
-      "Cumulative Interest": +r.cumulativeInterest.toFixed(2),
-      "Cumulative Principal": +r.cumulativePrincipal.toFixed(2),
-      "Cumulative Fees": +r.cumulativeFees.toFixed(2),
-      "Cumulative Total": +r.cumulativeTotal.toFixed(2),
-    })));
-    lendingWs["!cols"] = [{ wch: 24 }, { wch: 20 }, { wch: 22 }, { wch: 18 }, { wch: 18 }];
-    XLSX.utils.book_append_sheet(wb, lendingWs, "Lending Country Summary");
+    if (showLendingCountrySummary) {
+      const lendingWs = XLSX.utils.json_to_sheet(lendingCountrySummary.map((r) => ({
+        "Lending Country": r.country,
+        "Cumulative Interest": +r.cumulativeInterest.toFixed(2),
+        "Cumulative Principal": +r.cumulativePrincipal.toFixed(2),
+        "Cumulative Fees": +r.cumulativeFees.toFixed(2),
+        "Cumulative Total": +r.cumulativeTotal.toFixed(2),
+      })));
+      lendingWs["!cols"] = [{ wch: 24 }, { wch: 20 }, { wch: 22 }, { wch: 18 }, { wch: 18 }];
+      XLSX.utils.book_append_sheet(wb, lendingWs, "Lending Country Summary");
+    }
 
     // Sheet 3: Borrowing Country Summary
-    const borrowingWs = XLSX.utils.json_to_sheet(borrowingCountrySummary.map((r) => ({
-      "Borrowing Country": r.country,
-      "Cumulative Interest": +r.cumulativeInterest.toFixed(2),
-      "Cumulative Principal": +r.cumulativePrincipal.toFixed(2),
-      "Cumulative Fees": +r.cumulativeFees.toFixed(2),
-      "Cumulative Total": +r.cumulativeTotal.toFixed(2),
-    })));
-    borrowingWs["!cols"] = [{ wch: 24 }, { wch: 20 }, { wch: 22 }, { wch: 18 }, { wch: 18 }];
-    XLSX.utils.book_append_sheet(wb, borrowingWs, "Borrowing Country Summary");
+    if (showBorrowingCountrySummary) {
+      const borrowingWs = XLSX.utils.json_to_sheet(borrowingCountrySummary.map((r) => ({
+        "Borrowing Country": r.country,
+        "Cumulative Interest": +r.cumulativeInterest.toFixed(2),
+        "Cumulative Principal": +r.cumulativePrincipal.toFixed(2),
+        "Cumulative Fees": +r.cumulativeFees.toFixed(2),
+        "Cumulative Total": +r.cumulativeTotal.toFixed(2),
+      })));
+      borrowingWs["!cols"] = [{ wch: 24 }, { wch: 20 }, { wch: 22 }, { wch: 18 }, { wch: 18 }];
+      XLSX.utils.book_append_sheet(wb, borrowingWs, "Borrowing Country Summary");
+    }
 
     // Sheet 4: Loan Detail Summary
-    const detailWs = XLSX.utils.json_to_sheet(loanDetailSummary.map((r) => ({
-      "Lending Country": r.lendingCountry,
-      "Borrowing Country": r.borrowingCountry,
-      "Loan Facility": r.loanFacility,
-      "Lender": r.lender,
-      "Borrower": r.borrower,
-      "Cumulative Principal": +r.cumulativePrincipal.toFixed(2),
-      "Cumulative Interest": +r.cumulativeInterest.toFixed(2),
-      "Cumulative Fees": +r.cumulativeFees.toFixed(2),
-      "Cumulative Total": +r.cumulativeTotal.toFixed(2),
-    })));
-    detailWs["!cols"] = [{ wch: 20 }, { wch: 20 }, { wch: 26 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 18 }];
-    XLSX.utils.book_append_sheet(wb, detailWs, "Loan Detail Summary");
+    if (showLoanDetailSummary) {
+      const detailWs = XLSX.utils.json_to_sheet(loanDetailSummary.map((r) => ({
+        "Lending Country": r.lendingCountry,
+        "Borrowing Country": r.borrowingCountry,
+        "Loan Facility": r.loanFacility,
+        "Lender": r.lender,
+        "Borrower": r.borrower,
+        "Cumulative Principal": +r.cumulativePrincipal.toFixed(2),
+        "Cumulative Interest": +r.cumulativeInterest.toFixed(2),
+        "Cumulative Fees": +r.cumulativeFees.toFixed(2),
+        "Cumulative Total": +r.cumulativeTotal.toFixed(2),
+      })));
+      detailWs["!cols"] = [{ wch: 20 }, { wch: 20 }, { wch: 26 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 18 }];
+      XLSX.utils.book_append_sheet(wb, detailWs, "Loan Detail Summary");
+    }
+
+    // Sheet 5: Borrower Summary
+    if (showBorrowerSummary) {
+      const borrowerWs = XLSX.utils.json_to_sheet(borrowerSummary.map((r) => ({
+        "Borrower": r.name,
+        "Cumulative Interest": +r.cumulativeInterest.toFixed(2),
+        "Cumulative Principal": +r.cumulativePrincipal.toFixed(2),
+        "Cumulative Fees": +r.cumulativeFees.toFixed(2),
+        "Cumulative Total": +r.cumulativeTotal.toFixed(2),
+      })));
+      borrowerWs["!cols"] = [{ wch: 24 }, { wch: 20 }, { wch: 22 }, { wch: 18 }, { wch: 18 }];
+      XLSX.utils.book_append_sheet(wb, borrowerWs, "Borrower Summary");
+    }
+
+    // Sheet 6: Lender Summary
+    if (showLenderSummary) {
+      const lenderWs = XLSX.utils.json_to_sheet(lenderSummary.map((r) => ({
+        "Lender": r.name,
+        "Cumulative Interest": +r.cumulativeInterest.toFixed(2),
+        "Cumulative Principal": +r.cumulativePrincipal.toFixed(2),
+        "Cumulative Fees": +r.cumulativeFees.toFixed(2),
+        "Cumulative Total": +r.cumulativeTotal.toFixed(2),
+      })));
+      lenderWs["!cols"] = [{ wch: 24 }, { wch: 20 }, { wch: 22 }, { wch: 18 }, { wch: 18 }];
+      XLSX.utils.book_append_sheet(wb, lenderWs, "Lender Summary");
+    }
+
+    if (wb.SheetNames.length === 0) {
+      const emptyWs = XLSX.utils.aoa_to_sheet([["No sections selected. Enable at least one section under \"Show\" to export data."]]);
+      XLSX.utils.book_append_sheet(wb, emptyWs, "Summary");
+    }
 
     XLSX.writeFile(wb, `country_summary_report_${dateStamp}.xlsx`);
   };
@@ -407,69 +509,116 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
     doc.setTextColor(100, 100, 100);
     doc.text(exportStr, pageW - 14, 16, { align: "right" });
     if (activeFilterLabel) doc.text(`Filters: ${activeFilterLabel}`, pageW - 14, 22, { align: "right" });
+    doc.setTextColor(0, 0, 0);
+
+    let y = 30;
+    let hasContent = false;
+
+    // Advances y for the next section: starts a fresh page when forced or when the
+    // current section wouldn't fit, otherwise flows beneath the previous table.
+    const startSection = (title: string, forceNewPage: boolean) => {
+      if (hasContent) {
+        y = (doc as any).lastAutoTable.finalY + 8;
+        if (forceNewPage || y > pageH - 50) {
+          doc.addPage();
+          y = 14;
+        }
+      }
+      doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.setTextColor(79, 70, 229);
+      doc.text(title, 14, y); y += 4;
+      doc.setFont("helvetica", "normal"); doc.setTextColor(0, 0, 0);
+      hasContent = true;
+    };
 
     // KPI summary table
-    doc.setTextColor(0, 0, 0);
-    let y = 30;
-    autoTable(doc, {
-      startY: y,
-      head: [["Lending Countries", "Borrowing Countries", "Cumulative Interest", "Cumulative Principal", "Cumulative Fees", "Cumulative Total"]],
-      body: [[
-        String(kpis.lendingCountries),
-        String(kpis.borrowingCountries),
-        fmt(kpis.cumulativeInterest),
-        fmt(kpis.cumulativePrincipal),
-        fmt(kpis.cumulativeFees),
-        fmt(kpis.cumulativeTotal),
-      ]],
-      headStyles: { ...headStyles, halign: "center" },
-      bodyStyles: { halign: "center", fontStyle: "bold", fontSize: 9 },
-      margin: { left: 14, right: 14 },
-    });
+    if (showPanelSummary) {
+      autoTable(doc, {
+        startY: y,
+        head: [["Lending Countries", "Borrowing Countries", "Cumulative Interest", "Cumulative Principal", "Cumulative Fees", "Cumulative Total"]],
+        body: [[
+          String(kpis.lendingCountries),
+          String(kpis.borrowingCountries),
+          fmt(kpis.cumulativeInterest),
+          fmt(kpis.cumulativePrincipal),
+          fmt(kpis.cumulativeFees),
+          fmt(kpis.cumulativeTotal),
+        ]],
+        headStyles: { ...headStyles, halign: "center" },
+        bodyStyles: { halign: "center", fontStyle: "bold", fontSize: 9 },
+        margin: { left: 14, right: 14 },
+      });
+      hasContent = true;
+    }
 
     // Table 1: Lending Country Summary
-    y = (doc as any).lastAutoTable.finalY + 8;
-    doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.setTextColor(79, 70, 229);
-    doc.text("Lending Country Summary", 14, y); y += 4;
-    doc.setFont("helvetica", "normal"); doc.setTextColor(0, 0, 0);
-    autoTable(doc, {
-      startY: y,
-      head: [["Lending Country", "Cumulative Interest", "Cumulative Principal", "Cumulative Fees", "Cumulative Total"]],
-      body: lendingCountrySummary.map((r) => [r.country, fmt(r.cumulativeInterest), fmt(r.cumulativePrincipal), fmt(r.cumulativeFees), fmt(r.cumulativeTotal)]),
-      headStyles, alternateRowStyles: altRowStyles,
-      columnStyles: numCols([1, 2, 3, 4]),
-      styles: { fontSize: 8 }, margin: { left: 14, right: 14 },
-    });
+    if (showLendingCountrySummary) {
+      startSection("Lending Country Summary", false);
+      autoTable(doc, {
+        startY: y,
+        head: [["Lending Country", "Cumulative Interest", "Cumulative Principal", "Cumulative Fees", "Cumulative Total"]],
+        body: lendingCountrySummary.map((r) => [r.country, fmt(r.cumulativeInterest), fmt(r.cumulativePrincipal), fmt(r.cumulativeFees), fmt(r.cumulativeTotal)]),
+        headStyles, alternateRowStyles: altRowStyles,
+        columnStyles: numCols([1, 2, 3, 4]),
+        styles: { fontSize: 8 }, margin: { left: 14, right: 14 },
+      });
+    }
 
     // Table 2: Borrowing Country Summary
-    y = (doc as any).lastAutoTable.finalY + 8;
-    if (y > pageH - 50) { doc.addPage(); y = 14; }
-    doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.setTextColor(79, 70, 229);
-    doc.text("Borrowing Country Summary", 14, y); y += 4;
-    doc.setFont("helvetica", "normal"); doc.setTextColor(0, 0, 0);
-    autoTable(doc, {
-      startY: y,
-      head: [["Borrowing Country", "Cumulative Interest", "Cumulative Principal", "Cumulative Fees", "Cumulative Total"]],
-      body: borrowingCountrySummary.map((r) => [r.country, fmt(r.cumulativeInterest), fmt(r.cumulativePrincipal), fmt(r.cumulativeFees), fmt(r.cumulativeTotal)]),
-      headStyles, alternateRowStyles: altRowStyles,
-      columnStyles: numCols([1, 2, 3, 4]),
-      styles: { fontSize: 8 }, margin: { left: 14, right: 14 },
-    });
+    if (showBorrowingCountrySummary) {
+      startSection("Borrowing Country Summary", false);
+      autoTable(doc, {
+        startY: y,
+        head: [["Borrowing Country", "Cumulative Interest", "Cumulative Principal", "Cumulative Fees", "Cumulative Total"]],
+        body: borrowingCountrySummary.map((r) => [r.country, fmt(r.cumulativeInterest), fmt(r.cumulativePrincipal), fmt(r.cumulativeFees), fmt(r.cumulativeTotal)]),
+        headStyles, alternateRowStyles: altRowStyles,
+        columnStyles: numCols([1, 2, 3, 4]),
+        styles: { fontSize: 8 }, margin: { left: 14, right: 14 },
+      });
+    }
 
-    // Table 3: Loan Detail Summary — always new page
-    doc.addPage();
-    y = 14;
-    doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.setTextColor(79, 70, 229);
-    doc.text("Loan Detail Summary", 14, y); y += 4;
-    doc.setFont("helvetica", "normal"); doc.setTextColor(0, 0, 0);
-    autoTable(doc, {
-      startY: y,
-      head: [["Lending Country", "Borrowing Country", "Loan Facility", "Lender", "Borrower", "Cum. Principal", "Cum. Interest", "Cum. Fees", "Cum. Total"]],
-      body: loanDetailSummary.map((r) => [r.lendingCountry, r.borrowingCountry, r.loanFacility, r.lender, r.borrower, fmt(r.cumulativePrincipal), fmt(r.cumulativeInterest), fmt(r.cumulativeFees), fmt(r.cumulativeTotal)]),
-      headStyles, alternateRowStyles: altRowStyles,
-      columnStyles: numCols([5, 6, 7, 8]),
-      styles: { fontSize: 7 }, margin: { left: 14, right: 14 },
-    });
+    // Table 3: Loan Detail Summary — always starts on its own page
+    if (showLoanDetailSummary) {
+      startSection("Loan Detail Summary", true);
+      autoTable(doc, {
+        startY: y,
+        head: [["Lending Country", "Borrowing Country", "Loan Facility", "Lender", "Borrower", "Cum. Principal", "Cum. Interest", "Cum. Fees", "Cum. Total"]],
+        body: loanDetailSummary.map((r) => [r.lendingCountry, r.borrowingCountry, r.loanFacility, r.lender, r.borrower, fmt(r.cumulativePrincipal), fmt(r.cumulativeInterest), fmt(r.cumulativeFees), fmt(r.cumulativeTotal)]),
+        headStyles, alternateRowStyles: altRowStyles,
+        columnStyles: numCols([5, 6, 7, 8]),
+        styles: { fontSize: 7 }, margin: { left: 14, right: 14 },
+      });
+    }
+
+    // Table 4: Borrower Summary — always starts on its own page
+    if (showBorrowerSummary) {
+      startSection("Borrower Summary", true);
+      autoTable(doc, {
+        startY: y,
+        head: [["Borrower", "Cumulative Interest", "Cumulative Principal", "Cumulative Fees", "Cumulative Total"]],
+        body: borrowerSummary.map((r) => [r.name, fmt(r.cumulativeInterest), fmt(r.cumulativePrincipal), fmt(r.cumulativeFees), fmt(r.cumulativeTotal)]),
+        headStyles, alternateRowStyles: altRowStyles,
+        columnStyles: numCols([1, 2, 3, 4]),
+        styles: { fontSize: 8 }, margin: { left: 14, right: 14 },
+      });
+    }
+
+    // Table 5: Lender Summary
+    if (showLenderSummary) {
+      startSection("Lender Summary", false);
+      autoTable(doc, {
+        startY: y,
+        head: [["Lender", "Cumulative Interest", "Cumulative Principal", "Cumulative Fees", "Cumulative Total"]],
+        body: lenderSummary.map((r) => [r.name, fmt(r.cumulativeInterest), fmt(r.cumulativePrincipal), fmt(r.cumulativeFees), fmt(r.cumulativeTotal)]),
+        headStyles, alternateRowStyles: altRowStyles,
+        columnStyles: numCols([1, 2, 3, 4]),
+        styles: { fontSize: 8 }, margin: { left: 14, right: 14 },
+      });
+    }
+
+    if (!hasContent) {
+      doc.setFontSize(11); doc.setTextColor(120, 120, 120);
+      doc.text("No sections selected. Enable at least one section under \"Show\" to export data.", 14, y);
+    }
 
     // Page numbers
     const totalPg = (doc as any).internal.getNumberOfPages();
@@ -515,71 +664,117 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
     cover.addText(exportStr, { x: 0.5, y: 6.8, w: 12.4, h: 0.3, fontSize: 9, color: "818CF8", align: "center" });
 
     // ── Slide 2: KPI Summary ──
-    const kpiSlide = pptx.addSlide();
-    kpiSlide.addText("Report Summary", { x: 0.4, y: 0.15, w: 12.5, h: 0.5, fontSize: 20, bold: true, color: IND });
-    kpiSlide.addTable(
-      [
-        [hdr("Borrowing Countries", "center"), hdr("Lending Countries", "center"), hdr("Cumulative Interest", "center"), hdr("Cumulative Principal", "center"), hdr("Cumulative Fees", "center"), hdr("Cumulative Total", "center")],
-        [cel(String(kpis.borrowingCountries), true), cel(String(kpis.lendingCountries), true), cel(fmt(kpis.cumulativeInterest), true), cel(fmt(kpis.cumulativePrincipal), true), cel(fmt(kpis.cumulativeFees), true), cel(fmt(kpis.cumulativeTotal), true)],
-      ] as any,
-      { x: 0.4, y: 0.85, w: 12.5, h: 1.1, colW: [2.15, 2.15, 2.1, 2.15, 2.1, 2.1], fontSize: 12 }
-    );
-    kpiSlide.addText(`Generated: ${exportStr}${activeFilterLabel ? `   |   Filters: ${activeFilterLabel}` : ""}`, { x: 0.4, y: 7.0, w: 12.5, h: 0.3, fontSize: 8, color: GRY });
+    if (showPanelSummary) {
+      const kpiSlide = pptx.addSlide();
+      kpiSlide.addText("Report Summary", { x: 0.4, y: 0.15, w: 12.5, h: 0.5, fontSize: 20, bold: true, color: IND });
+      kpiSlide.addTable(
+        [
+          [hdr("Borrowing Countries", "center"), hdr("Lending Countries", "center"), hdr("Cumulative Interest", "center"), hdr("Cumulative Principal", "center"), hdr("Cumulative Fees", "center"), hdr("Cumulative Total", "center")],
+          [cel(String(kpis.borrowingCountries), true), cel(String(kpis.lendingCountries), true), cel(fmt(kpis.cumulativeInterest), true), cel(fmt(kpis.cumulativePrincipal), true), cel(fmt(kpis.cumulativeFees), true), cel(fmt(kpis.cumulativeTotal), true)],
+        ] as any,
+        { x: 0.4, y: 0.85, w: 12.5, h: 1.1, colW: [2.15, 2.15, 2.1, 2.15, 2.1, 2.1], fontSize: 12 }
+      );
+      kpiSlide.addText(`Generated: ${exportStr}${activeFilterLabel ? `   |   Filters: ${activeFilterLabel}` : ""}`, { x: 0.4, y: 7.0, w: 12.5, h: 0.3, fontSize: 8, color: GRY });
+    }
 
     // ── Slide 3: Lending Country Summary ──
-    const lSlide = pptx.addSlide();
-    lSlide.addText("Lending Country Summary", { x: 0.4, y: 0.15, w: 12.5, h: 0.5, fontSize: 18, bold: true, color: IND });
-    lSlide.addTable(
-      [
-        [hdr("Lending Country"), hdr("Cumulative Interest", "right"), hdr("Cumulative Principal", "right"), hdr("Cumulative Fees", "right"), hdr("Cumulative Total", "right")],
-        ...lendingCountrySummary.map((r, i) => [
-          cel(r.country, false, i % 2 === 1),
-          cel(fmt(r.cumulativeInterest), true, i % 2 === 1),
-          cel(fmt(r.cumulativePrincipal), true, i % 2 === 1),
-          cel(fmt(r.cumulativeFees), true, i % 2 === 1),
-          cel(fmt(r.cumulativeTotal), true, i % 2 === 1),
-        ]),
-      ] as any,
-      { x: 0.4, y: 0.82, w: 12.5, h: 6.2, colW: [3.5, 2.4, 2.4, 2.0, 2.2] }
-    );
+    if (showLendingCountrySummary) {
+      const lSlide = pptx.addSlide();
+      lSlide.addText("Lending Country Summary", { x: 0.4, y: 0.15, w: 12.5, h: 0.5, fontSize: 18, bold: true, color: IND });
+      lSlide.addTable(
+        [
+          [hdr("Lending Country"), hdr("Cumulative Interest", "right"), hdr("Cumulative Principal", "right"), hdr("Cumulative Fees", "right"), hdr("Cumulative Total", "right")],
+          ...lendingCountrySummary.map((r, i) => [
+            cel(r.country, false, i % 2 === 1),
+            cel(fmt(r.cumulativeInterest), true, i % 2 === 1),
+            cel(fmt(r.cumulativePrincipal), true, i % 2 === 1),
+            cel(fmt(r.cumulativeFees), true, i % 2 === 1),
+            cel(fmt(r.cumulativeTotal), true, i % 2 === 1),
+          ]),
+        ] as any,
+        { x: 0.4, y: 0.82, w: 12.5, h: 6.2, colW: [3.5, 2.4, 2.4, 2.0, 2.2] }
+      );
+    }
 
     // ── Slide 4: Borrowing Country Summary ──
-    const bSlide = pptx.addSlide();
-    bSlide.addText("Borrowing Country Summary", { x: 0.4, y: 0.15, w: 12.5, h: 0.5, fontSize: 18, bold: true, color: IND });
-    bSlide.addTable(
-      [
-        [hdr("Borrowing Country"), hdr("Cumulative Interest", "right"), hdr("Cumulative Principal", "right"), hdr("Cumulative Fees", "right"), hdr("Cumulative Total", "right")],
-        ...borrowingCountrySummary.map((r, i) => [
-          cel(r.country, false, i % 2 === 1),
-          cel(fmt(r.cumulativeInterest), true, i % 2 === 1),
-          cel(fmt(r.cumulativePrincipal), true, i % 2 === 1),
-          cel(fmt(r.cumulativeFees), true, i % 2 === 1),
-          cel(fmt(r.cumulativeTotal), true, i % 2 === 1),
-        ]),
-      ] as any,
-      { x: 0.4, y: 0.82, w: 12.5, h: 6.2, colW: [3.5, 2.4, 2.4, 2.0, 2.2] }
-    );
+    if (showBorrowingCountrySummary) {
+      const bSlide = pptx.addSlide();
+      bSlide.addText("Borrowing Country Summary", { x: 0.4, y: 0.15, w: 12.5, h: 0.5, fontSize: 18, bold: true, color: IND });
+      bSlide.addTable(
+        [
+          [hdr("Borrowing Country"), hdr("Cumulative Interest", "right"), hdr("Cumulative Principal", "right"), hdr("Cumulative Fees", "right"), hdr("Cumulative Total", "right")],
+          ...borrowingCountrySummary.map((r, i) => [
+            cel(r.country, false, i % 2 === 1),
+            cel(fmt(r.cumulativeInterest), true, i % 2 === 1),
+            cel(fmt(r.cumulativePrincipal), true, i % 2 === 1),
+            cel(fmt(r.cumulativeFees), true, i % 2 === 1),
+            cel(fmt(r.cumulativeTotal), true, i % 2 === 1),
+          ]),
+        ] as any,
+        { x: 0.4, y: 0.82, w: 12.5, h: 6.2, colW: [3.5, 2.4, 2.4, 2.0, 2.2] }
+      );
+    }
 
     // ── Slide 5: Loan Detail Summary ──
-    const dSlide = pptx.addSlide();
-    dSlide.addText("Loan Detail Summary", { x: 0.4, y: 0.15, w: 12.5, h: 0.5, fontSize: 18, bold: true, color: IND });
-    dSlide.addTable(
-      [
-        [hdr("Lending Country"), hdr("Borrowing Country"), hdr("Loan Facility"), hdr("Lender"), hdr("Borrower"), hdr("Cum. Principal", "right"), hdr("Cum. Interest", "right"), hdr("Cum. Fees", "right"), hdr("Cum. Total", "right")],
-        ...loanDetailSummary.map((r, i) => [
-          cel(r.lendingCountry, false, i % 2 === 1),
-          cel(r.borrowingCountry, false, i % 2 === 1),
-          cel(r.loanFacility, false, i % 2 === 1),
-          cel(r.lender, false, i % 2 === 1),
-          cel(r.borrower, false, i % 2 === 1),
-          cel(fmt(r.cumulativePrincipal), true, i % 2 === 1),
-          cel(fmt(r.cumulativeInterest), true, i % 2 === 1),
-          cel(fmt(r.cumulativeFees), true, i % 2 === 1),
-          cel(fmt(r.cumulativeTotal), true, i % 2 === 1),
-        ]),
-      ] as any,
-      { x: 0.2, y: 0.82, w: 13.2, h: 6.2, colW: [1.7, 1.7, 2.1, 1.5, 1.5, 1.5, 1.5, 1.2, 1.5] }
-    );
+    if (showLoanDetailSummary) {
+      const dSlide = pptx.addSlide();
+      dSlide.addText("Loan Detail Summary", { x: 0.4, y: 0.15, w: 12.5, h: 0.5, fontSize: 18, bold: true, color: IND });
+      dSlide.addTable(
+        [
+          [hdr("Lending Country"), hdr("Borrowing Country"), hdr("Loan Facility"), hdr("Lender"), hdr("Borrower"), hdr("Cum. Principal", "right"), hdr("Cum. Interest", "right"), hdr("Cum. Fees", "right"), hdr("Cum. Total", "right")],
+          ...loanDetailSummary.map((r, i) => [
+            cel(r.lendingCountry, false, i % 2 === 1),
+            cel(r.borrowingCountry, false, i % 2 === 1),
+            cel(r.loanFacility, false, i % 2 === 1),
+            cel(r.lender, false, i % 2 === 1),
+            cel(r.borrower, false, i % 2 === 1),
+            cel(fmt(r.cumulativePrincipal), true, i % 2 === 1),
+            cel(fmt(r.cumulativeInterest), true, i % 2 === 1),
+            cel(fmt(r.cumulativeFees), true, i % 2 === 1),
+            cel(fmt(r.cumulativeTotal), true, i % 2 === 1),
+          ]),
+        ] as any,
+        { x: 0.2, y: 0.82, w: 13.2, h: 6.2, colW: [1.7, 1.7, 2.1, 1.5, 1.5, 1.5, 1.5, 1.2, 1.5] }
+      );
+    }
+
+    // ── Slide 6: Borrower Summary ──
+    if (showBorrowerSummary) {
+      const brSlide = pptx.addSlide();
+      brSlide.addText("Borrower Summary", { x: 0.4, y: 0.15, w: 12.5, h: 0.5, fontSize: 18, bold: true, color: IND });
+      brSlide.addTable(
+        [
+          [hdr("Borrower"), hdr("Cumulative Interest", "right"), hdr("Cumulative Principal", "right"), hdr("Cumulative Fees", "right"), hdr("Cumulative Total", "right")],
+          ...borrowerSummary.map((r, i) => [
+            cel(r.name, false, i % 2 === 1),
+            cel(fmt(r.cumulativeInterest), true, i % 2 === 1),
+            cel(fmt(r.cumulativePrincipal), true, i % 2 === 1),
+            cel(fmt(r.cumulativeFees), true, i % 2 === 1),
+            cel(fmt(r.cumulativeTotal), true, i % 2 === 1),
+          ]),
+        ] as any,
+        { x: 0.4, y: 0.82, w: 12.5, h: 6.2, colW: [3.0, 2.5, 2.5, 2.25, 2.25] }
+      );
+    }
+
+    // ── Slide 7: Lender Summary ──
+    if (showLenderSummary) {
+      const lnSlide = pptx.addSlide();
+      lnSlide.addText("Lender Summary", { x: 0.4, y: 0.15, w: 12.5, h: 0.5, fontSize: 18, bold: true, color: IND });
+      lnSlide.addTable(
+        [
+          [hdr("Lender"), hdr("Cumulative Interest", "right"), hdr("Cumulative Principal", "right"), hdr("Cumulative Fees", "right"), hdr("Cumulative Total", "right")],
+          ...lenderSummary.map((r, i) => [
+            cel(r.name, false, i % 2 === 1),
+            cel(fmt(r.cumulativeInterest), true, i % 2 === 1),
+            cel(fmt(r.cumulativePrincipal), true, i % 2 === 1),
+            cel(fmt(r.cumulativeFees), true, i % 2 === 1),
+            cel(fmt(r.cumulativeTotal), true, i % 2 === 1),
+          ]),
+        ] as any,
+        { x: 0.4, y: 0.82, w: 12.5, h: 6.2, colW: [3.0, 2.5, 2.5, 2.25, 2.25] }
+      );
+    }
 
     void pptx.writeFile({ fileName: `country_summary_report_${dateStamp}.pptx` });
   };
@@ -619,19 +814,18 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
         : isDarkMode ? "bg-gray-800 text-gray-100 border-gray-700 hover:bg-gray-700" : "bg-white text-gray-900 border-gray-200 hover:bg-gray-50"
     }`;
 
-  const PaginationRow = ({ page, total, totalPages, setPage }: { page: number; total: number; totalPages: number; setPage: (n: number) => void }) =>
-    total > PAGE_SIZE ? (
-      <div className={`flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between px-4 py-3 border-t ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
-        <span className={`text-xs ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-          Showing <b>{page * PAGE_SIZE + 1}</b>–<b>{Math.min(total, (page + 1) * PAGE_SIZE)}</b> of <b>{total}</b>
-        </span>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className={btnPageCls(page === 0)}>Prev</button>
-          <span className={`text-xs font-semibold ${isDarkMode ? "text-gray-200" : "text-gray-800"}`}>Page {page + 1} of {totalPages}</span>
-          <button type="button" onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} className={btnPageCls(page >= totalPages - 1)}>Next</button>
-        </div>
+  const PaginationRow = ({ page, total, totalPages, setPage }: { page: number; total: number; totalPages: number; setPage: (n: number) => void }) => (
+    <div className={`flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between px-4 py-3 border-t ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
+      <span className={`text-xs ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+        Showing <b>{total === 0 ? 0 : page * PAGE_SIZE + 1}</b>–<b>{Math.min(total, (page + 1) * PAGE_SIZE)}</b> of <b>{total}</b>
+      </span>
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className={btnPageCls(page === 0)}>Prev</button>
+        <span className={`text-xs font-semibold ${isDarkMode ? "text-gray-200" : "text-gray-800"}`}>Page {page + 1} of {totalPages}</span>
+        <button type="button" onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} className={btnPageCls(page >= totalPages - 1)}>Next</button>
       </div>
-    ) : null;
+    </div>
+  );
 
   // ── Country summary table helper ──────────────────────────────
   const CountryTable = ({ label, colLabel, rows, paged, page, totalPages, setPage }: {
@@ -657,6 +851,43 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
             ) : paged.map((r) => (
               <tr key={r.country} className={trCls}>
                 <td className={tdCls}>{r.country}</td>
+                <td className={tdRCls}>{fmt(r.cumulativeInterest)}</td>
+                <td className={tdRCls}>{fmt(r.cumulativePrincipal)}</td>
+                <td className={tdRCls}>{fmt(r.cumulativeFees)}</td>
+                <td className={tdRCls}>{fmt(r.cumulativeTotal)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <PaginationRow page={page} total={rows.length} totalPages={totalPages} setPage={setPage} />
+    </div>
+  );
+
+  // ── Borrower / Lender summary table helper ────────────────────
+  const NameSummaryTable = ({ label, colLabel, rows, paged, page, totalPages, setPage }: {
+    label: string; colLabel: string; rows: NameSummaryRow[]; paged: NameSummaryRow[];
+    page: number; totalPages: number; setPage: (n: number) => void;
+  }) => (
+    <div className="mb-6">
+      <h3 className={`text-base font-semibold mb-3 ${isDarkMode ? "text-gray-100" : "text-gray-800"}`}>{label}</h3>
+      <div className={tableCls}>
+        <table className="min-w-full text-sm border-separate border-spacing-0">
+          <thead className={theadCls}>
+            <tr>
+              <th className={thCls}>{colLabel}</th>
+              <th className={thRCls}>Cumulative Interest</th>
+              <th className={thRCls}>Cumulative Principal</th>
+              <th className={thRCls}>Cumulative Fees</th>
+              <th className={thRCls}>Cumulative Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr><td colSpan={5} className={`px-6 py-8 text-center text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>No data available.</td></tr>
+            ) : paged.map((r) => (
+              <tr key={r.name} className={trCls}>
+                <td className={tdCls}>{r.name}</td>
                 <td className={tdRCls}>{fmt(r.cumulativeInterest)}</td>
                 <td className={tdRCls}>{fmt(r.cumulativePrincipal)}</td>
                 <td className={tdRCls}>{fmt(r.cumulativeFees)}</td>
@@ -720,9 +951,27 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
             </div>
 
             {/* As-of date */}
-            <div className="flex items-center gap-1.5">
+            {/* <div className="flex items-center gap-1.5">
               <span className={`text-xs font-medium whitespace-nowrap ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>As of</span>
               <input type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} className={inputCls} style={{ minWidth: 140 }} />
+            </div> */}
+
+            {/* Borrower / Lender summary date range */}
+            <div className="flex items-center gap-1.5">
+              <span className={`text-xs font-medium whitespace-nowrap ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>Summary from</span>
+              <input type="date" value={summaryStartDate} onChange={(e) => setSummaryStartDate(e.target.value)} className={inputCls} style={{ minWidth: 140 }} />
+              <span className={`text-xs font-medium whitespace-nowrap ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>to</span>
+              <input type="date" value={summaryEndDate} onChange={(e) => setSummaryEndDate(e.target.value)} className={inputCls} style={{ minWidth: 140 }} />
+              {(summaryStartDate || summaryEndDate) && (
+                <button
+                  type="button"
+                  onClick={() => { setSummaryStartDate(""); setSummaryEndDate(""); }}
+                  title="Reset date range"
+                  className={`h-9 w-9 flex items-center justify-center rounded-lg border text-sm transition ${isDarkMode ? "bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600" : "bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200"}`}
+                >
+                  ×
+                </button>
+              )}
             </div>
 
             {/* Clear Filters */}
@@ -753,6 +1002,14 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
             <input type="checkbox" checked={showLoanDetailSummary} onChange={(e) => setShowLoanDetailSummary(e.target.checked)} className="accent-indigo-600 w-3.5 h-3.5" />
             Loan Detail Summary
           </label>
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input type="checkbox" checked={showBorrowerSummary} onChange={(e) => setShowBorrowerSummary(e.target.checked)} className="accent-indigo-600 w-3.5 h-3.5" />
+            Borrower Summary
+          </label>
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input type="checkbox" checked={showLenderSummary} onChange={(e) => setShowLenderSummary(e.target.checked)} className="accent-indigo-600 w-3.5 h-3.5" />
+            Lender Summary
+          </label>
         </div>
 
         {/* ── Active filter chips ── */}
@@ -769,6 +1026,12 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
               <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${isDarkMode ? "bg-cyan-900/40 text-cyan-200 border border-cyan-700/40" : "bg-cyan-50 text-cyan-700 border border-cyan-200"}`}>
                 As of {asOfDate}
                 <button type="button" onClick={() => setAsOfDate("")} className="opacity-60 hover:opacity-100 ml-0.5">×</button>
+              </span>
+            )}
+            {(summaryStartDate || summaryEndDate) && (
+              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${isDarkMode ? "bg-amber-900/40 text-amber-200 border border-amber-700/40" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
+                Summary {summaryStartDate || "…"} to {summaryEndDate || "…"}
+                <button type="button" onClick={() => { setSummaryStartDate(""); setSummaryEndDate(""); }} className="opacity-60 hover:opacity-100 ml-0.5">×</button>
               </span>
             )}
           </div>
@@ -805,7 +1068,7 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
         )}
 
         {/* ── Table 1: Lending Country Summary ── */}
-        {showLendingCountrySummary && (
+        {/* {showLendingCountrySummary && (
           <CountryTable
             label="Lending Country Summary"
             colLabel="Lending Country"
@@ -815,10 +1078,10 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
             totalPages={lendingTotalPages}
             setPage={setLendingPage}
           />
-        )}
+        )}*/}
 
         {/* ── Table 1A: Borrowing Country Summary ── */}
-        {showBorrowingCountrySummary && (
+        {/* {showBorrowingCountrySummary && (
           <CountryTable
             label="Borrowing Country Summary"
             colLabel="Borrowing Country"
@@ -828,7 +1091,36 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
             totalPages={borrowingTotalPages}
             setPage={setBorrowingPage}
           />
+        )}  */}
+
+         {/* ── Table 3: Borrower Summary ── */}
+
+         {/* ── Table 4: Lender Summary ── */}
+        {showLenderSummary && (
+          <NameSummaryTable
+            label="Lender Country Summary"
+            colLabel="Lender"
+            rows={lenderSummary}
+            paged={pagedLender}
+            page={lenderPage}
+            totalPages={lenderTotalPages}
+            setPage={setLenderPage}
+          />
         )}
+
+        {showBorrowerSummary && (
+          <NameSummaryTable
+            label="Borrower Country Summary"
+            colLabel="Borrower"
+            rows={borrowerSummary}
+            paged={pagedBorrower}
+            page={borrowerPage}
+            totalPages={borrowerTotalPages}
+            setPage={setBorrowerPage}
+          />
+        )}
+
+        
 
         {/* ── Table 2: Loan Detail Summary ── */}
         {showLoanDetailSummary && (
@@ -871,6 +1163,8 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
             <PaginationRow page={loanDetailPage} total={loanDetailSummary.length} totalPages={loanDetailTotalPages} setPage={setLoanDetailPage} />
           </div>
         )}
+
+       
 
       </div>
     </div>

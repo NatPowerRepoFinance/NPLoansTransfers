@@ -236,7 +236,36 @@ type CountrySummaryLoanReportItem = {
   cumulative_principal?: number;
   cumulativeInterest?: number;
   cumulative_interest?: number;
-  total?: number;
+  cumulativeFee?: number;
+  cumulative_fee?: number;
+  cumulativeTotal?: number;
+  cumulative_total?: number;
+};
+
+type BorrowerSummaryReportItem = {
+  borrowerCompanyId?: number;
+  borrower?: string;
+  cumulativeInterest?: number;
+  cumulative_interest?: number;
+  cumulativePrincipal?: number;
+  cumulative_principal?: number;
+  cumulativeFee?: number;
+  cumulative_fee?: number;
+  cumulativeTotal?: number;
+  cumulative_total?: number;
+};
+
+type LenderSummaryReportItem = {
+  lenderCompanyId?: number;
+  lender?: string;
+  cumulativeInterest?: number;
+  cumulative_interest?: number;
+  cumulativePrincipal?: number;
+  cumulative_principal?: number;
+  cumulativeFee?: number;
+  cumulative_fee?: number;
+  cumulativeTotal?: number;
+  cumulative_total?: number;
 };
 
 export const ssoLogin = async (idToken: string): Promise<ApiEnvelope<SsoLoginResponse>> => {
@@ -1202,7 +1231,7 @@ export const getCountrySummaryReport = async (
     country: string;
     cumulativeInterest: number;
     cumulativePrincipal: number;
-    total: number;
+    cumulativeTotal: number;
   }>
 > => {
   const response = await fetch(`${API_BASE_URL}/api/v1/reports/country-summary`, {
@@ -1228,13 +1257,15 @@ export const getCountrySummaryReport = async (
       country: String(row?.country ?? "Unknown"),
       cumulativeInterest: Number(row?.cumulativeInterest ?? row?.cumulative_interest ?? 0),
       cumulativePrincipal: Number(row?.cumulativePrincipal ?? row?.cumulative_principal ?? 0),
-      total: Number(row?.total ?? 0),
+      cumulativeTotal: Number(row?.total ?? 0),
     }))
     .sort((first, second) => first.country.localeCompare(second.country));
 };
 
 export const getCountrySummaryLoansReport = async (
   poAccessToken: string,
+  startDate?: string,
+  endDate?: string,
 ): Promise<
   Array<{
     country: string;
@@ -1243,10 +1274,15 @@ export const getCountrySummaryLoansReport = async (
     borrower: string;
     cumulativePrincipal: number;
     cumulativeInterest: number;
-    total: number;
+    cumulativeFees: number;
+    cumulativeTotal: number;
   }>
 > => {
-  const response = await fetch(`${API_BASE_URL}/api/v1/reports/country-summary/loans`, {
+  const params = new URLSearchParams();
+  if (startDate) params.set("startDate", startDate);
+  if (endDate) params.set("endDate", endDate);
+  const query = params.toString();
+  const response = await fetch(`${API_BASE_URL}/api/v1/reports/country-summary/loans${query ? `?${query}` : ""}`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -1278,7 +1314,8 @@ export const getCountrySummaryLoansReport = async (
       borrower: String(row?.borrower ?? "-"),
       cumulativePrincipal: Number(row?.cumulativePrincipal ?? row?.cumulative_principal ?? 0),
       cumulativeInterest: Number(row?.cumulativeInterest ?? row?.cumulative_interest ?? 0),
-      total: Number(row?.total ?? 0),
+      cumulativeFees: Number(row?.cumulativeFee ?? row?.cumulative_fee ?? 0),
+      cumulativeTotal: Number(row?.cumulativeTotal ?? row?.cumulative_total ?? 0),
     }))
     .sort((first, second) => {
       if (first.country === second.country) {
@@ -1286,6 +1323,98 @@ export const getCountrySummaryLoansReport = async (
       }
       return first.country.localeCompare(second.country);
     });
+};
+
+export const getBorrowerSummaryReport = async (
+  poAccessToken: string,
+  startDate?: string,
+  endDate?: string,
+): Promise<
+  Array<{
+    borrower: string;
+    cumulativeInterest: number;
+    cumulativePrincipal: number;
+    cumulativeFees: number;
+    cumulativeTotal: number;
+  }>
+> => {
+  const params = new URLSearchParams();
+  if (startDate) params.set("startDate", startDate);
+  if (endDate) params.set("endDate", endDate);
+  const query = params.toString();
+  const response = await fetch(`${API_BASE_URL}/api/v1/reports/borrower-summary${query ? `?${query}` : ""}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Access-Token": poAccessToken,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      await readApiErrorMessage(response, `Failed to fetch borrower summary report (${response.status})`),
+    );
+  }
+
+  const result = (await response.json()) as ApiEnvelope<BorrowerSummaryReportItem[]>;
+  throwIfApiEnvelopeError(result, `Failed to fetch borrower summary report (${response.status})`);
+  const rows = Array.isArray(result?.data) ? result.data : [];
+
+  return rows
+    .map((row) => ({
+      borrower: String(row?.borrower ?? "Unknown"),
+      cumulativeInterest: Number(row?.cumulativeInterest ?? row?.cumulative_interest ?? 0),
+      cumulativePrincipal: Number(row?.cumulativePrincipal ?? row?.cumulative_principal ?? 0),
+      cumulativeFees: Number(row?.cumulativeFee ?? row?.cumulative_fee ?? 0),
+      cumulativeTotal: Number(row?.cumulativeTotal ?? row?.cumulative_total ?? 0),
+    }))
+    .sort((first, second) => first.borrower.localeCompare(second.borrower));
+};
+
+export const getLenderSummaryReport = async (
+  poAccessToken: string,
+  startDate?: string,
+  endDate?: string,
+): Promise<
+  Array<{
+    lender: string;
+    cumulativeInterest: number;
+    cumulativePrincipal: number;
+    cumulativeFees: number;
+    cumulativeTotal: number;
+  }>
+> => {
+  const params = new URLSearchParams();
+  if (startDate) params.set("startDate", startDate);
+  if (endDate) params.set("endDate", endDate);
+  const query = params.toString();
+  const response = await fetch(`${API_BASE_URL}/api/v1/reports/lender-summary${query ? `?${query}` : ""}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Access-Token": poAccessToken,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      await readApiErrorMessage(response, `Failed to fetch lender summary report (${response.status})`),
+    );
+  }
+
+  const result = (await response.json()) as ApiEnvelope<LenderSummaryReportItem[]>;
+  throwIfApiEnvelopeError(result, `Failed to fetch lender summary report (${response.status})`);
+  const rows = Array.isArray(result?.data) ? result.data : [];
+
+  return rows
+    .map((row) => ({
+      lender: String(row?.lender ?? "Unknown"),
+      cumulativeInterest: Number(row?.cumulativeInterest ?? row?.cumulative_interest ?? 0),
+      cumulativePrincipal: Number(row?.cumulativePrincipal ?? row?.cumulative_principal ?? 0),
+      cumulativeFees: Number(row?.cumulativeFee ?? row?.cumulative_fee ?? 0),
+      cumulativeTotal: Number(row?.cumulativeTotal ?? row?.cumulative_total ?? 0),
+    }))
+    .sort((first, second) => first.lender.localeCompare(second.lender));
 };
 
 /** POST multipart/form-data with part name `file`; `mode` is required as a query param per API. */

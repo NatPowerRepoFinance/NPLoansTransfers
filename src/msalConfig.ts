@@ -18,4 +18,5 @@ export const msalConfig: Configuration = {
 export const loginRequest: PopupRequest = {
   scopes: ["User.Read"],
   redirectUri: window.location.origin,
+  prompt: "select_account",
 };
