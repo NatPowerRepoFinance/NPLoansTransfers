@@ -1335,7 +1335,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                     endDate: agreementEndDate,
                     lenderBankAccount: "",
                     borrowerBankAccount: "",
-                    annualInterestRate: 0,
+                    annualInterestRate: 3.5,
                     days: remainingDays,
                     drawDown: 0,
                     repayment: 0,

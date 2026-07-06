@@ -224,10 +224,14 @@ type CountrySummaryReportItem = {
   cumulative_interest?: number;
   cumulativePrincipal?: number;
   cumulative_principal?: number;
-  total?: number;
+  cumulativeFee?: number;
+  cumulative_fee?: number;
+  cumulativeTotal?: number;
+  cumulative_total?: number;
 };
 type CountrySummaryLoanReportItem = {
   country?: string;
+  loanFacilityId?: number;
   loanFacility?: string;
   loan_facility?: string;
   lender?: string;
@@ -238,11 +242,13 @@ type CountrySummaryLoanReportItem = {
   cumulative_interest?: number;
   cumulativeFee?: number;
   cumulative_fee?: number;
+  total?: number;
   cumulativeTotal?: number;
   cumulative_total?: number;
 };
 
 type BorrowerSummaryReportItem = {
+  country?: string;
   borrowerCompanyId?: number;
   borrower?: string;
   cumulativeInterest?: number;
@@ -256,6 +262,7 @@ type BorrowerSummaryReportItem = {
 };
 
 type LenderSummaryReportItem = {
+  country?: string;
   lenderCompanyId?: number;
   lender?: string;
   cumulativeInterest?: number;
@@ -1231,6 +1238,7 @@ export const getCountrySummaryReport = async (
     country: string;
     cumulativeInterest: number;
     cumulativePrincipal: number;
+    cumulativeFees: number;
     cumulativeTotal: number;
   }>
 > => {
@@ -1257,7 +1265,8 @@ export const getCountrySummaryReport = async (
       country: String(row?.country ?? "Unknown"),
       cumulativeInterest: Number(row?.cumulativeInterest ?? row?.cumulative_interest ?? 0),
       cumulativePrincipal: Number(row?.cumulativePrincipal ?? row?.cumulative_principal ?? 0),
-      cumulativeTotal: Number(row?.total ?? 0),
+      cumulativeFees: Number(row?.cumulativeFee ?? row?.cumulative_fee ?? 0),
+      cumulativeTotal: Number(row?.cumulativeTotal ?? row?.cumulative_total ?? 0),
     }))
     .sort((first, second) => first.country.localeCompare(second.country));
 };
@@ -1315,7 +1324,7 @@ export const getCountrySummaryLoansReport = async (
       cumulativePrincipal: Number(row?.cumulativePrincipal ?? row?.cumulative_principal ?? 0),
       cumulativeInterest: Number(row?.cumulativeInterest ?? row?.cumulative_interest ?? 0),
       cumulativeFees: Number(row?.cumulativeFee ?? row?.cumulative_fee ?? 0),
-      cumulativeTotal: Number(row?.cumulativeTotal ?? row?.cumulative_total ?? 0),
+      cumulativeTotal: Number(row?.total ?? row?.cumulativeTotal ?? row?.cumulative_total ?? 0),
     }))
     .sort((first, second) => {
       if (first.country === second.country) {
@@ -1331,7 +1340,7 @@ export const getBorrowerSummaryReport = async (
   endDate?: string,
 ): Promise<
   Array<{
-    borrower: string;
+    country: string;
     cumulativeInterest: number;
     cumulativePrincipal: number;
     cumulativeFees: number;
@@ -1362,13 +1371,13 @@ export const getBorrowerSummaryReport = async (
 
   return rows
     .map((row) => ({
-      borrower: String(row?.borrower ?? "Unknown"),
+      country: String(row?.country ?? row?.borrower ?? "Unknown"),
       cumulativeInterest: Number(row?.cumulativeInterest ?? row?.cumulative_interest ?? 0),
       cumulativePrincipal: Number(row?.cumulativePrincipal ?? row?.cumulative_principal ?? 0),
       cumulativeFees: Number(row?.cumulativeFee ?? row?.cumulative_fee ?? 0),
       cumulativeTotal: Number(row?.cumulativeTotal ?? row?.cumulative_total ?? 0),
     }))
-    .sort((first, second) => first.borrower.localeCompare(second.borrower));
+    .sort((first, second) => first.country.localeCompare(second.country));
 };
 
 export const getLenderSummaryReport = async (
@@ -1377,7 +1386,7 @@ export const getLenderSummaryReport = async (
   endDate?: string,
 ): Promise<
   Array<{
-    lender: string;
+    country: string;
     cumulativeInterest: number;
     cumulativePrincipal: number;
     cumulativeFees: number;
@@ -1408,13 +1417,13 @@ export const getLenderSummaryReport = async (
 
   return rows
     .map((row) => ({
-      lender: String(row?.lender ?? "Unknown"),
+      country: String(row?.country ?? row?.lender ?? "Unknown"),
       cumulativeInterest: Number(row?.cumulativeInterest ?? row?.cumulative_interest ?? 0),
       cumulativePrincipal: Number(row?.cumulativePrincipal ?? row?.cumulative_principal ?? 0),
       cumulativeFees: Number(row?.cumulativeFee ?? row?.cumulative_fee ?? 0),
       cumulativeTotal: Number(row?.cumulativeTotal ?? row?.cumulative_total ?? 0),
     }))
-    .sort((first, second) => first.lender.localeCompare(second.lender));
+    .sort((first, second) => first.country.localeCompare(second.country));
 };
 
 /** POST multipart/form-data with part name `file`; `mode` is required as a query param per API. */
