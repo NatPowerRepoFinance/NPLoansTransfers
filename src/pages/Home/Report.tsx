@@ -1005,14 +1005,7 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
             <input type="checkbox" checked={showPanelSummary} onChange={(e) => setShowPanelSummary(e.target.checked)} className="accent-indigo-600 w-3.5 h-3.5" />
             Panel Summary
           </label>
-          <label className="flex items-center gap-1.5 cursor-pointer select-none">
-            <input type="checkbox" checked={showLendingCountrySummary} onChange={(e) => setShowLendingCountrySummary(e.target.checked)} className="accent-indigo-600 w-3.5 h-3.5" />
-            Lending Country Summary
-          </label>
-          <label className="flex items-center gap-1.5 cursor-pointer select-none">
-            <input type="checkbox" checked={showBorrowingCountrySummary} onChange={(e) => setShowBorrowingCountrySummary(e.target.checked)} className="accent-indigo-600 w-3.5 h-3.5" />
-            Borrowing Country Summary
-          </label>
+         
           <label className="flex items-center gap-1.5 cursor-pointer select-none">
             <input type="checkbox" checked={showLoanDetailSummary} onChange={(e) => setShowLoanDetailSummary(e.target.checked)} className="accent-indigo-600 w-3.5 h-3.5" />
             Loan Detail Summary
