@@ -10,8 +10,8 @@ export default function Navbar() {
           title="Home"
         >
           <img
-            src="/Natpower_PO.png"
-            alt="Natpower PO Logo"
+            src="/Natpower.png"
+            alt="Natpower Logo"
             className="h-6 sm:h-8 object-contain transition-transform duration-200 hover:scale-105"
           />
           <h3 className="font-medium">Loans and Transfers</h3>

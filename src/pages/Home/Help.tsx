@@ -225,8 +225,8 @@ export default function HelpTab({ isDarkMode }: HelpTabProps) {
           <div className="space-y-3">
             <p>
               Each schedule row represents a date range with a draw down, optional repayment and
-              fees. Calculated columns (Days, Principal, Cumulative Principal, Interest, Cumulative
-              Interest, Total) update automatically.
+              fees. Calculated columns (Days, Principal, Interest, Total, Cumulative Principal,
+              Cumulative Interest, Cumulative Total, Cumulative Fees) update automatically.
             </p>
             <p className={`font-semibold ${accent}`}>Adding a row:</p>
             <ol className="list-decimal pl-5 space-y-1">
@@ -286,11 +286,14 @@ export default function HelpTab({ isDarkMode }: HelpTabProps) {
             <p className={`font-semibold ${accent}`}>Required columns:</p>
             <div className={`rounded-md border p-3 text-xs font-mono ${codeBox}`}>
               Start Date | End Date | Lender Bank Account | Borrower Bank Account | Annual Interest
-              Rate % | Draw Down | Repayment | Fees
+              Rate % | Draw Down | Repayment | Fees | Interest Repayment
             </div>
             <p className={subText}>
               Dates must be in <code>YYYY-MM-DD</code>. Bank accounts must already exist on the
-              selected lender / borrower companies.
+              selected lender / borrower companies. The downloaded template also includes the
+              calculated columns (Days, Principal, Interest, Total, Cumulative Principal, Cumulative
+              Interest, Cumulative Total, Cumulative Fees) for reference — these are recalculated
+              automatically and don&apos;t need to be filled in.
             </p>
             <p className={`font-semibold ${accent}`}>Exporting:</p>
             <ul className="list-disc pl-5 space-y-1">
