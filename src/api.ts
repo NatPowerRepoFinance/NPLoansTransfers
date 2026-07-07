@@ -110,6 +110,7 @@ type CreateLoanFacilityPayload = {
   currency: LoanFacility["currency"];
   annualInterestRate: number;
   daysInYear: number;
+  totalLoanAgreementAmount?: number;
   status: LoanFacility["status"];
   addRow: boolean;
   agreementEndDate?: string;
@@ -332,6 +333,9 @@ export const getLoanFacilities = async (poAccessToken: string): Promise<LoanFaci
       currency: (loan?.currency ?? "EUR") as LoanFacility["currency"],
       annualInterestRate: Number(loan?.annualInterestRate ?? loan?.annual_interest_rate ?? 0),
       daysInYear: Number(loan?.daysInYear ?? loan?.days_in_year ?? 365),
+      totalLoanAgreementAmount: Number(
+        loan?.totalLoanAgreementAmount ?? loan?.total_loan_agreement_amount ?? 0,
+      ),
       addRow: Boolean(loan?.addRow ?? loan?.add_row ?? false),
       schedule: Array.isArray(loan?.schedule)
         ? loan.schedule.map((row: any, i: number) => ({

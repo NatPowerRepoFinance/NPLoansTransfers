@@ -9,6 +9,7 @@ import {
   computeHistoryChanges,
   snapshotToDisplayRows,
 } from "../../utils/loanHistoryDisplay";
+import { formatCurrency } from "../../utils/format";
 
 function LoanHistoryAuditBlock({
   entry,
@@ -163,6 +164,7 @@ type LoanFacilityTabProps = {
     currency: LoanFacility["currency"];
     annualInterestRate: number;
     daysInYear: number;
+    totalLoanAgreementAmount: number;
     agreementEndDate: string;
     addRow: boolean;
   };
@@ -176,6 +178,7 @@ type LoanFacilityTabProps = {
       currency: LoanFacility["currency"];
       annualInterestRate: number;
       daysInYear: number;
+      totalLoanAgreementAmount: number;
       agreementEndDate: string;
       addRow: boolean;
     }>
@@ -411,13 +414,23 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
       !scheduleForm.endDate ||
       scheduleForm.endDate <= facilityAgreementEndDate;
 
+    const totalLoanAgreementAmount = Number(
+      (selectedLoanFacility as any)?.totalLoanAgreementAmount ??
+      (selectedLoanFacility as any)?.total_loan_agreement_amount ?? 0,
+    );
+    const resultingCumulativePrincipal =
+      outstandingPrincipalBeforeRow + (Number.isFinite(drawDown) ? drawDown : 0) - (Number.isFinite(repayment) ? repayment : 0);
+    const withinAgreementAmount =
+      totalLoanAgreementAmount <= 0 || resultingCumulativePrincipal <= totalLoanAgreementAmount;
+
     return !(
       hasRequiredFields &&
       hasValidNumbers &&
       repaymentWithinDrawDown &&
       endDateNotEarlierThanStartDate &&
       datesWithinInsertBounds &&
-      endDateWithinAgreement
+      endDateWithinAgreement &&
+      withinAgreementAmount
     );
   })();
   const scheduleRowValidationMessage = (() => {
@@ -445,6 +458,17 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     const maxAllowedRepayment = outstandingPrincipalBeforeRow + (Number.isFinite(drawDown) ? drawDown : 0);
     if (hasValidNumbers && repayment > maxAllowedRepayment) {
       return `Repayment cannot exceed the outstanding principal (${maxAllowedRepayment.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}).`;
+    }
+
+    const totalLoanAgreementAmount = Number(
+      (selectedLoanFacility as any)?.totalLoanAgreementAmount ??
+      (selectedLoanFacility as any)?.total_loan_agreement_amount ?? 0,
+    );
+    if (hasValidNumbers && totalLoanAgreementAmount > 0) {
+      const resultingCumulativePrincipal = outstandingPrincipalBeforeRow + drawDown - repayment;
+      if (resultingCumulativePrincipal > totalLoanAgreementAmount) {
+        return `Cumulative principal cannot exceed the Total Loan Agreement Amount (${totalLoanAgreementAmount.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}).`;
+      }
     }
 
     if (
@@ -488,6 +512,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     loanForm.currency === String((selectedLoanFacility as any).currency ?? "") &&
     Number(loanForm.annualInterestRate) === Number((selectedLoanFacility as any).annualInterestRate ?? 0) &&
     Number(loanForm.daysInYear) === Number((selectedLoanFacility as any).daysInYear ?? 0) &&
+    Number(loanForm.totalLoanAgreementAmount) === Number((selectedLoanFacility as any).totalLoanAgreementAmount ?? 0) &&
     loanForm.agreementEndDate === String((selectedLoanFacility as any).agreementEndDate ?? "") &&
     loanForm.addRow === Boolean((selectedLoanFacility as any).addRow ?? (selectedLoanFacility as any).add_row);
   const isLoanFacilityActionDisabled =
@@ -734,7 +759,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                   : "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 hover:-translate-y-[1px]"
               }`}
             >
-              Edit
+              Save
             </button>
             <button
               type="button"
@@ -1024,13 +1049,29 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
 
                 <div>
                   <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                    Agreement Date <span className="text-red-500">*</span>
+                    Agreement Start Date <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="date"
                     value={loanForm.agreementDate}
                     onChange={(e) =>
                       setLoanForm((prev) => ({ ...prev, agreementDate: e.target.value }))
+                    }
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      isDarkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300 text-black"
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Agreement End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={loanForm.agreementEndDate}
+                    onChange={(e) =>
+                      setLoanForm((prev) => ({ ...prev, agreementEndDate: e.target.value }))
                     }
                     className={`w-full px-3 py-2 border rounded-lg ${
                       isDarkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300 text-black"
@@ -1060,6 +1101,30 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                     <option value="USD">USD</option>
                     <option value="YEN">YEN</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Total Loan Agreement Amount
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={loanForm.totalLoanAgreementAmount}
+                    onChange={(e) =>
+                      setLoanForm((prev) => ({
+                        ...prev,
+                        totalLoanAgreementAmount: Number(e.target.value) || 0,
+                      }))
+                    }
+                    placeholder="Maximum amount that can be drawn down"
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      isDarkMode
+                        ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                        : "bg-white border-gray-300 text-black placeholder-gray-500"
+                    }`}
+                  />
                 </div>
 
                 <div>
@@ -1109,21 +1174,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                   />
                 </div>
 
-                <div>
-                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                    Agreement End Date
-                  </label>
-                  <input
-                    type="date"
-                    value={loanForm.agreementEndDate}
-                    onChange={(e) =>
-                      setLoanForm((prev) => ({ ...prev, agreementEndDate: e.target.value }))
-                    }
-                    className={`w-full px-3 py-2 border rounded-lg ${
-                      isDarkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300 text-black"
-                    }`}
-                  />
-                </div>
+                
 
                 <div className="md:col-span-2">
                   <label
@@ -1169,7 +1220,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                       : "bg-indigo-600 hover:bg-indigo-700 text-white"
                   }`}
                 >
-                  {isCreatingLoan ? "Add" : "Edit"}
+                  {isCreatingLoan ? "Add" : "Save"}
                 </button>
               </div>
               </div>
@@ -1204,12 +1255,14 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 text-sm">
                 {[
                   ["Status", loanFacilityFieldValue(["status"])],
-                  ["Start Date", formatLoanDate(loanFacilityFieldValue(["startDate", "start_date", "agreementDate", "agreement_date"], "-"))],
+                  ["Agreement Start Date", formatLoanDate(loanFacilityFieldValue(["startDate", "start_date", "agreementDate", "agreement_date"], "-"))],
                   ["Close Date", formatLoanDate(loanFacilityFieldValue(["closeDate", "close_date"], "-"))],
                   ["Lender", loanFacilityFieldValue(["lender", "lenderName"])],
                   ["Borrower", loanFacilityFieldValue(["borrower", "borrowerName"])],
                   ["Agreement Date", formatLoanDate(loanFacilityFieldValue(["agreementDate", "agreement_date"], "-"))],
                   ["Agreement End Date", formatLoanDate(loanFacilityFieldValue(["agreementEndDate", "agreement_end_date"], "-"))],
+                                    ["Total Loan Agreement Amount", formatCurrency(Number(loanFacilityFieldValue(["totalLoanAgreementAmount", "total_loan_agreement_amount"], "0")))],
+
                   ["Currency", loanFacilityFieldValue(["currency"])],
                   ["Annual Interest Rate %", loanFacilityFieldValue(["annualInterestRate", "annual_interest_rate"], "0")],
                   ["Days in Year", loanFacilityFieldValue(["daysInYear", "days_in_year"], "365")],
