@@ -364,7 +364,6 @@ export default function Home() {
   const [showLoanFacilityModal, setShowLoanFacilityModal] = useState(false);
   const [loanForm, setLoanForm] = useState(emptyLoanForm);
   const [activeTab, setActiveTab] = useState<"loan-facility" | "report" | "admin" | "help">("loan-facility");
-    const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const [companies, setCompanies] = useState<Company[]>([
     {
@@ -2105,7 +2104,7 @@ export default function Home() {
           const formatted = formatCurrency(Math.abs(v));
           return v < 0 ? `(${formatted})` : formatted;
         },
-        cellStyle: (params) => ({
+        cellStyle: () => ({
           textAlign: "right",
         }),
         headerClass: "ag-right-aligned-header",
