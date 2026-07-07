@@ -9,7 +9,6 @@ import {
   computeHistoryChanges,
   snapshotToDisplayRows,
 } from "../../utils/loanHistoryDisplay";
-import { formatCurrency } from "../../utils/format";
 
 function LoanHistoryAuditBlock({
   entry,

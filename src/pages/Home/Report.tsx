@@ -6,7 +6,6 @@ import PptxGenJS from "pptxgenjs";
 import {
   getBorrowerSummaryReport,
   getCountrySummaryLoansReport,
-  getCountrySummaryReport,
   getLenderSummaryReport,
 } from "@/api";
 
@@ -106,9 +105,6 @@ function computeRowTotals(loan: Loan, rows: ScheduleRow[]): Totals {
 
 export default function ReportTab({ isDarkMode, loans, companies }: ReportTabProps) {
   // ── API fallback data ─────────────────────────────────────────
-  const [apiCountrySummary, setApiCountrySummary] = useState<
-    Array<{ country: string; cumulativeInterest: number; cumulativePrincipal: number; cumulativeFees: number; cumulativeTotal: number }>
-  >([]);
   const [apiLoanDetailSummary, setApiLoanDetailSummary] = useState<
     Array<{
       country: string;
@@ -125,20 +121,10 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
   const [borrowerSummary, setBorrowerSummary] = useState<NameSummaryRow[]>([]);
   const [lenderSummary, setLenderSummary] = useState<NameSummaryRow[]>([]);
 
-  useEffect(() => {
-    const token = localStorage.getItem("poAccessToken");
-    if (!token) return;
-    let cancelled = false;
-    getCountrySummaryReport(token)
-      .then((rows) => { if (!cancelled) setApiCountrySummary(rows); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-
   // ── Show / hide section toggles ───────────────────────────────
   const [showPanelSummary, setShowPanelSummary] = useState(true);
-  const [showLendingCountrySummary, setShowLendingCountrySummary] = useState(true);
-  const [showBorrowingCountrySummary, setShowBorrowingCountrySummary] = useState(true);
+  const [showLendingCountrySummary] = useState(true);
+  const [showBorrowingCountrySummary] = useState(true);
   const [showLoanDetailSummary, setShowLoanDetailSummary] = useState(true);
   const [showBorrowerSummary, setShowBorrowerSummary] = useState(true);
   const [showLenderSummary, setShowLenderSummary] = useState(true);
@@ -360,14 +346,10 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
   }, [borrowerSummary, selectedCountries]);
 
   // ── Pagination ────────────────────────────────────────────────
-  const [lendingPage, setLendingPage] = useState(0);
-  const [borrowingPage, setBorrowingPage] = useState(0);
   const [loanDetailPage, setLoanDetailPage] = useState(0);
   const [borrowerPage, setBorrowerPage] = useState(0);
   const [lenderPage, setLenderPage] = useState(0);
 
-  const lendingTotalPages = Math.max(1, Math.ceil(lendingCountrySummary.length / PAGE_SIZE));
-  const borrowingTotalPages = Math.max(1, Math.ceil(borrowingCountrySummary.length / PAGE_SIZE));
   const loanDetailTotalPages = Math.max(1, Math.ceil(loanDetailSummary.length / PAGE_SIZE));
   const borrowerTotalPages = Math.max(1, Math.ceil(filteredBorrowerSummary.length / PAGE_SIZE));
   const lenderTotalPages = Math.max(1, Math.ceil(filteredLenderSummary.length / PAGE_SIZE));
@@ -377,12 +359,8 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
   const pagedBorrower = filteredBorrowerSummary.slice(borrowerPage * PAGE_SIZE, (borrowerPage + 1) * PAGE_SIZE);
   const pagedLender = filteredLenderSummary.slice(lenderPage * PAGE_SIZE, (lenderPage + 1) * PAGE_SIZE);
 
-  useEffect(() => setLendingPage((p) => Math.min(p, lendingTotalPages - 1)), [lendingTotalPages]);
-  useEffect(() => setBorrowingPage((p) => Math.min(p, borrowingTotalPages - 1)), [borrowingTotalPages]);
   useEffect(() => setLoanDetailPage((p) => Math.min(p, loanDetailTotalPages - 1)), [loanDetailTotalPages]);
 
-  const pagedLending = lendingCountrySummary.slice(lendingPage * PAGE_SIZE, (lendingPage + 1) * PAGE_SIZE);
-  const pagedBorrowing = borrowingCountrySummary.slice(borrowingPage * PAGE_SIZE, (borrowingPage + 1) * PAGE_SIZE);
   const pagedLoanDetail = loanDetailSummary.slice(loanDetailPage * PAGE_SIZE, (loanDetailPage + 1) * PAGE_SIZE);
 
   // ── Utilities ─────────────────────────────────────────────────
@@ -842,43 +820,6 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
     </div>
   );
 
-  // ── Country summary table helper ──────────────────────────────
-  const CountryTable = ({ label, colLabel, rows, paged, page, totalPages, setPage }: {
-    label: string; colLabel: string; rows: CountryRow[]; paged: CountryRow[];
-    page: number; totalPages: number; setPage: (n: number) => void;
-  }) => (
-    <div className="mb-6">
-      <h3 className={`text-base font-semibold mb-3 ${isDarkMode ? "text-gray-100" : "text-gray-800"}`}>{label}</h3>
-      <div className={tableCls}>
-        <table className="min-w-full text-sm border-separate border-spacing-0">
-          <thead className={theadCls}>
-            <tr>
-              <th className={thCls}>{colLabel}</th>
-              <th className={thRCls}>Cumulative Interest</th>
-              <th className={thRCls}>Cumulative Principal</th>
-              <th className={thRCls}>Cumulative Fees</th>
-              <th className={thRCls}>Cumulative Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr><td colSpan={5} className={`px-6 py-8 text-center text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>No data available.</td></tr>
-            ) : paged.map((r) => (
-              <tr key={r.country} className={trCls}>
-                <td className={tdCls}>{r.country}</td>
-                <td className={tdRCls}>{fmt(r.cumulativeInterest)}</td>
-                <td className={tdRCls}>{fmt(r.cumulativePrincipal)}</td>
-                <td className={tdRCls}>{fmt(r.cumulativeFees)}</td>
-                <td className={tdRCls}>{fmt(r.cumulativeTotal)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <PaginationRow page={page} total={rows.length} totalPages={totalPages} setPage={setPage} />
-    </div>
-  );
-
   // ── Borrower / Lender summary table helper ────────────────────
   const NameSummaryTable = ({ label, colLabel, rows, paged, page, totalPages, setPage }: {
     label: string; colLabel: string; rows: NameSummaryRow[]; paged: NameSummaryRow[];
@@ -1075,35 +1016,6 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
           </div>
         )}
 
-        {/* ── Table 1: Lending Country Summary ── */}
-        {/* {showLendingCountrySummary && (
-          <CountryTable
-            label="Lending Country Summary"
-            colLabel="Lending Country"
-            rows={lendingCountrySummary}
-            paged={pagedLending}
-            page={lendingPage}
-            totalPages={lendingTotalPages}
-            setPage={setLendingPage}
-          />
-        )}*/}
-
-        {/* ── Table 1A: Borrowing Country Summary ── */}
-        {/* {showBorrowingCountrySummary && (
-          <CountryTable
-            label="Borrowing Country Summary"
-            colLabel="Borrowing Country"
-            rows={borrowingCountrySummary}
-            paged={pagedBorrowing}
-            page={borrowingPage}
-            totalPages={borrowingTotalPages}
-            setPage={setBorrowingPage}
-          />
-        )}  */}
-
-         {/* ── Table 3: Borrower Summary ── */}
-
-         {/* ── Table 4: Lender Summary ── */}
         {showLenderSummary && (
           <NameSummaryTable
             label="Lender Country Summary"
