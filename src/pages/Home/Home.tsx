@@ -30,6 +30,7 @@ import type { ColDef } from "ag-grid-community";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { getNatpowerLogoDataUrl, NATPOWER_LOGO_ASPECT_RATIO } from "@/utils/pdfLogo";
 import { mockApi } from '../../services/mockApi';
 import type { MockUser } from '../../types';
 import LoanFacilityTab from "./LoanFacility";
@@ -1837,10 +1838,18 @@ export default function Home() {
         "Lender Bank Account",
         "Borrower Bank Account",
         "Annual Interest Rate %",
+        "Days",
         "Draw Down",
         "Repayment",
-        "Fees",
+        "Principal",
+        "Interest",
         "Interest Repayment",
+        "Total",
+        "Cumulative Principal",
+        "Cumulative Interest",
+        "Cumulative Total",
+        "Fees",
+        "Cumulative Fees",
         "Description",
       ],
       [
@@ -1849,8 +1858,16 @@ export default function Home() {
         "Barclays GBP 30958472",
         "Intesa EUR 22199410",
         "5",
+        "31",
         "100000",
         "0",
+        "100000",
+        "424.66",
+        "0",
+        "100424.66",
+        "100000",
+        "424.66",
+        "100424.66",
         "0",
         "0",
         "",
@@ -2618,6 +2635,7 @@ export default function Home() {
       "End Date": formatDate(row.endDate),
       "Lender Bank Account": row.lenderBankAccount || "-",
       "Borrower Bank Account": row.borrowerBankAccount || "-",
+      Description: row.description || "",
       "Annual Interest Rate %": row.annualInterestRate,
       Days: row.days,
       "Draw Down": row.drawDown,
@@ -2647,15 +2665,24 @@ export default function Home() {
     toast.success("Loan Facility exported to Excel.");
   };
 
-  const exportLoanFacilityToPDF = () => {
+  const exportLoanFacilityToPDF = async () => {
     if (!selectedLoanFacility) {
       toast.error("Please select a Loan Facility first.");
       return;
     }
 
     const doc = new jsPDF({ orientation: "landscape" });
+    const logoHeight = 12;
+    const logoWidth = logoHeight / NATPOWER_LOGO_ASPECT_RATIO;
+    try {
+      const logoDataUrl = await getNatpowerLogoDataUrl();
+      doc.addImage(logoDataUrl, "PNG", 14, 5, logoWidth, logoHeight);
+    } catch {
+      /* logo is decorative — proceed without it if it fails to load */
+    }
+    const textX = 14 + logoWidth + 4;
     doc.setFontSize(14);
-    doc.text(`Loan Facility: ${selectedLoanFacility.name}`, 14, 16);
+    doc.text(`Loan Facility: ${selectedLoanFacility.name}`, textX, 13);
     doc.setFontSize(10);
     doc.text(
       `Exported On: ${new Date().toLocaleDateString("en-GB")}`,
@@ -2711,6 +2738,7 @@ export default function Home() {
         "End Date",
         "Lender Bank Account",
         "Borrower Bank Account",
+        "Description",
         "Annual Interest Rate %",
         "Days",
         "Draw Down",
@@ -2731,6 +2759,7 @@ export default function Home() {
         formatDate(row.endDate),
         row.lenderBankAccount || "-",
         row.borrowerBankAccount || "-",
+        row.description || "",
         formatCurrency(row.annualInterestRate),
         formatCurrencyInteger(row.days),
         formatCurrency(row.drawDown),

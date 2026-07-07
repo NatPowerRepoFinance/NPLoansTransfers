@@ -3,10 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/authProvider";
 import { ssoLogin } from "@/api";
 import { loginRequest, msalConfig } from "@/msalConfig";
-import {
-  InteractionRequiredAuthError,
-  PublicClientApplication,
-} from "@azure/msal-browser";
+import { PublicClientApplication } from "@azure/msal-browser";
 
 const msalInstance = new PublicClientApplication(msalConfig);
 const msalInitPromise = msalInstance.initialize();
@@ -56,25 +53,11 @@ const AuthLogin = () => {
             ...loginRequest,
             redirectUri: `${window.location.origin}/blank.html`,
           };
-    
-          let response;
-          const accounts = msalInstance.getAllAccounts();
-          if (accounts.length > 0) {
-            try {
-              response = await msalInstance.acquireTokenSilent({
-                ...request,
-                account: accounts[0],
-              });
-            } catch (silentError: any) {
-              if (!(silentError instanceof InteractionRequiredAuthError)) {
-                throw silentError;
-              }
-            }
-          }
-    
-          if (!response) {
-            response = await msalInstance.loginPopup(request);
-          }
+
+          // Always show the interactive account picker rather than silently reusing
+          // whatever account is cached — acquireTokenSilent bypasses `prompt: "select_account"`
+          // entirely, which previously let a stale/wrong cached account win silently.
+          const response = await msalInstance.loginPopup(request);
           console.log("MSAL login response:", response);
     
           const idToken = response.idToken;
