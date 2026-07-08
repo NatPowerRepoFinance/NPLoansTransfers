@@ -9,6 +9,7 @@ import {
   computeHistoryChanges,
   snapshotToDisplayRows,
 } from "../../utils/loanHistoryDisplay";
+import { formatCurrency } from "../../utils/format";
 
 function LoanHistoryAuditBlock({
   entry,
@@ -163,6 +164,7 @@ type LoanFacilityTabProps = {
     currency: LoanFacility["currency"];
     annualInterestRate: number;
     daysInYear: number;
+    totalLoanAgreementAmount: number;
     agreementEndDate: string;
     addRow: boolean;
   };
@@ -176,6 +178,7 @@ type LoanFacilityTabProps = {
       currency: LoanFacility["currency"];
       annualInterestRate: number;
       daysInYear: number;
+      totalLoanAgreementAmount: number;
       agreementEndDate: string;
       addRow: boolean;
     }>
@@ -411,13 +414,23 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
       !scheduleForm.endDate ||
       scheduleForm.endDate <= facilityAgreementEndDate;
 
+    const totalLoanAgreementAmount = Number(
+      (selectedLoanFacility as any)?.totalLoanAgreementAmount ??
+      (selectedLoanFacility as any)?.total_loan_agreement_amount ?? 0,
+    );
+    const resultingCumulativePrincipal =
+      outstandingPrincipalBeforeRow + (Number.isFinite(drawDown) ? drawDown : 0) - (Number.isFinite(repayment) ? repayment : 0);
+    const withinAgreementAmount =
+      totalLoanAgreementAmount <= 0 || resultingCumulativePrincipal <= totalLoanAgreementAmount;
+
     return !(
       hasRequiredFields &&
       hasValidNumbers &&
       repaymentWithinDrawDown &&
       endDateNotEarlierThanStartDate &&
       datesWithinInsertBounds &&
-      endDateWithinAgreement
+      endDateWithinAgreement &&
+      withinAgreementAmount
     );
   })();
   const scheduleRowValidationMessage = (() => {
@@ -445,6 +458,17 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     const maxAllowedRepayment = outstandingPrincipalBeforeRow + (Number.isFinite(drawDown) ? drawDown : 0);
     if (hasValidNumbers && repayment > maxAllowedRepayment) {
       return `Repayment cannot exceed the outstanding principal (${maxAllowedRepayment.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}).`;
+    }
+
+    const totalLoanAgreementAmount = Number(
+      (selectedLoanFacility as any)?.totalLoanAgreementAmount ??
+      (selectedLoanFacility as any)?.total_loan_agreement_amount ?? 0,
+    );
+    if (hasValidNumbers && totalLoanAgreementAmount > 0) {
+      const resultingCumulativePrincipal = outstandingPrincipalBeforeRow + drawDown - repayment;
+      if (resultingCumulativePrincipal > totalLoanAgreementAmount) {
+        return `Cumulative principal cannot exceed the Total Loan Agreement Amount (${totalLoanAgreementAmount.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}).`;
+      }
     }
 
     if (
@@ -488,6 +512,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
     loanForm.currency === String((selectedLoanFacility as any).currency ?? "") &&
     Number(loanForm.annualInterestRate) === Number((selectedLoanFacility as any).annualInterestRate ?? 0) &&
     Number(loanForm.daysInYear) === Number((selectedLoanFacility as any).daysInYear ?? 0) &&
+    Number(loanForm.totalLoanAgreementAmount) === Number((selectedLoanFacility as any).totalLoanAgreementAmount ?? 0) &&
     loanForm.agreementEndDate === String((selectedLoanFacility as any).agreementEndDate ?? "") &&
     loanForm.addRow === Boolean((selectedLoanFacility as any).addRow ?? (selectedLoanFacility as any).add_row);
   const isLoanFacilityActionDisabled =
@@ -1024,7 +1049,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
 
                 <div>
                   <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                    Agreement Date <span className="text-red-500">*</span>
+                    Agreement Start Date <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="date"
@@ -1034,77 +1059,6 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                     }
                     className={`w-full px-3 py-2 border rounded-lg ${
                       isDarkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300 text-black"
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                    Currency <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={loanForm.currency}
-                    onChange={(e) =>
-                      setLoanForm((prev) => ({
-                        ...prev,
-                        currency: e.target.value as LoanFacility["currency"],
-                      }))
-                    }
-                    className={`w-full px-3 py-2 border rounded-lg ${
-                      isDarkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300 text-black"
-                    }`}
-                  >
-                    <option value="">Select currency</option>
-                    <option value="GBP">GBP</option>
-                    <option value="EUR">EUR</option>
-                    <option value="USD">USD</option>
-                    <option value="YEN">YEN</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                    Annual Interest rate %
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={loanForm.annualInterestRate}
-                    onChange={(e) =>
-                      setLoanForm((prev) => ({
-                        ...prev,
-                        annualInterestRate: Number(e.target.value),
-                      }))
-                    }
-                    placeholder="Enter annual interest rate"
-                    className={`w-full px-3 py-2 border rounded-lg ${
-                      isDarkMode
-                        ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
-                        : "bg-white border-gray-300 text-black placeholder-gray-500"
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                    Days in Year
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={366}
-                    value={loanForm.daysInYear}
-                    onChange={(e) =>
-                      setLoanForm((prev) => ({
-                        ...prev,
-                        daysInYear: Math.min(366, Math.max(0, Number(e.target.value) || 0)),
-                      }))
-                    }
-                    placeholder="Enter days in year"
-                    className={`w-full px-3 py-2 border rounded-lg ${
-                      isDarkMode
-                        ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
-                        : "bg-white border-gray-300 text-black placeholder-gray-500"
                     }`}
                   />
                 </div>
@@ -1124,6 +1078,105 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                     }`}
                   />
                 </div>
+
+                <div className="md:col-span-2">
+                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Total Loan Agreement Amount
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={loanForm.totalLoanAgreementAmount}
+                    onChange={(e) =>
+                      setLoanForm((prev) => ({
+                        ...prev,
+                        totalLoanAgreementAmount: Number(e.target.value) || 0,
+                      }))
+                    }
+                    placeholder="Maximum amount that can be drawn down"
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      isDarkMode
+                        ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                        : "bg-white border-gray-300 text-black placeholder-gray-500"
+                    }`}
+                  />
+                </div>
+
+                <div className="md:col-span-2 grid grid-cols-3 gap-4">
+                  <div>
+                    <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                      Currency <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={loanForm.currency}
+                      onChange={(e) =>
+                        setLoanForm((prev) => ({
+                          ...prev,
+                          currency: e.target.value as LoanFacility["currency"],
+                        }))
+                      }
+                      className={`w-full px-3 py-2 border rounded-lg ${
+                        isDarkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300 text-black"
+                      }`}
+                    >
+                      <option value="">Select currency</option>
+                      <option value="GBP">GBP</option>
+                      <option value="EUR">EUR</option>
+                      <option value="USD">USD</option>
+                      <option value="YEN">YEN</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                      Annual Interest rate %
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={loanForm.annualInterestRate}
+                      onChange={(e) =>
+                        setLoanForm((prev) => ({
+                          ...prev,
+                          annualInterestRate: Number(e.target.value),
+                        }))
+                      }
+                      placeholder="Enter annual interest rate"
+                      className={`w-full px-3 py-2 border rounded-lg ${
+                        isDarkMode
+                          ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                          : "bg-white border-gray-300 text-black placeholder-gray-500"
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                      Days in Year
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={366}
+                      value={loanForm.daysInYear}
+                      onChange={(e) =>
+                        setLoanForm((prev) => ({
+                          ...prev,
+                          daysInYear: Math.min(366, Math.max(0, Number(e.target.value) || 0)),
+                        }))
+                      }
+                      placeholder="Enter days in year"
+                      className={`w-full px-3 py-2 border rounded-lg ${
+                        isDarkMode
+                          ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                          : "bg-white border-gray-300 text-black placeholder-gray-500"
+                      }`}
+                    />
+                  </div>
+                </div>
+
+
 
                 <div className="md:col-span-2">
                   <label
@@ -1169,7 +1222,7 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                       : "bg-indigo-600 hover:bg-indigo-700 text-white"
                   }`}
                 >
-                  {isCreatingLoan ? "Add" : "Edit"}
+                  {isCreatingLoan ? "Add" : "Save"}
                 </button>
               </div>
               </div>
@@ -1201,36 +1254,41 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
             </h3>
             <div className={`rounded-xl border px-4 py-4 overflow-hidden shadow-sm ${isDarkMode ? "border-gray-700/80 bg-gray-800/70" : "border-gray-200 bg-white"}`}>
               <h4 className="text-base font-semibold mb-3 tracking-tight">Loan Details</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 text-sm">
-                {[
-                  ["Status", loanFacilityFieldValue(["status"])],
-                  ["Start Date", formatLoanDate(loanFacilityFieldValue(["startDate", "start_date", "agreementDate", "agreement_date"], "-"))],
-                  ["Close Date", formatLoanDate(loanFacilityFieldValue(["closeDate", "close_date"], "-"))],
-                  ["Lender", loanFacilityFieldValue(["lender", "lenderName"])],
-                  ["Borrower", loanFacilityFieldValue(["borrower", "borrowerName"])],
-                  ["Agreement Date", formatLoanDate(loanFacilityFieldValue(["agreementDate", "agreement_date"], "-"))],
-                  ["Agreement End Date", formatLoanDate(loanFacilityFieldValue(["agreementEndDate", "agreement_end_date"], "-"))],
-                  ["Currency", loanFacilityFieldValue(["currency"])],
-                  ["Annual Interest Rate %", loanFacilityFieldValue(["annualInterestRate", "annual_interest_rate"], "0")],
-                  ["Days in Year", loanFacilityFieldValue(["daysInYear", "days_in_year"], "365")],
-                ].map(([label, value]) => (
-                  <div
-                    key={label}
-                    className={`rounded-lg border px-3 py-2.5 ${
-                      isDarkMode
-                        ? "border-gray-700 bg-gray-900/50"
-                        : "border-slate-200 bg-slate-50"
-                    }`}
-                  >
-                    <span className={`block text-[11px] font-semibold uppercase tracking-wide ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                      {label}
-                    </span>
-                    <span className={`mt-1 block font-semibold ${isDarkMode ? "text-gray-100" : "text-slate-800"}`}>
-                      {value}
-                    </span>
+              {(() => {
+                const fieldBoxCls = `rounded-lg border px-3 py-2.5 ${
+                  isDarkMode
+                    ? "border-gray-700 bg-gray-900/50"
+                    : "border-slate-200 bg-slate-50"
+                }`;
+                const fieldLabelCls = `block text-[11px] font-semibold uppercase tracking-wide ${isDarkMode ? "text-gray-400" : "text-gray-500"}`;
+                const fieldValueCls = `mt-1 block font-semibold ${isDarkMode ? "text-gray-100" : "text-slate-800"}`;
+                const FieldBox = ({ label, value }: { label: string; value: string }) => (
+                  <div key={label} className={fieldBoxCls}>
+                    <span className={fieldLabelCls}>{label}</span>
+                    <span className={fieldValueCls}>{value}</span>
                   </div>
-                ))}
-              </div>
+                );
+
+                return (
+                  <div className="grid grid-cols-5 gap-3 text-sm">
+                    <FieldBox label="Status" value={loanFacilityFieldValue(["status"])} />
+                    <FieldBox label="Agreement Start Date" value={formatLoanDate(loanFacilityFieldValue(["startDate", "start_date", "agreementDate", "agreement_date"], "-"))} />
+                    <FieldBox label="Close Date" value={formatLoanDate(loanFacilityFieldValue(["closeDate", "close_date"], "-"))} />
+                    <FieldBox label="Lender" value={loanFacilityFieldValue(["lender", "lenderName"])} />
+                    <FieldBox label="Borrower" value={loanFacilityFieldValue(["borrower", "borrowerName"])} />
+
+                    <FieldBox label="Agreement Date" value={formatLoanDate(loanFacilityFieldValue(["agreementDate", "agreement_date"], "-"))} />
+                    <FieldBox label="Agreement End Date" value={formatLoanDate(loanFacilityFieldValue(["agreementEndDate", "agreement_end_date"], "-"))} />
+                    <FieldBox label="Total Loan Agreement Amount" value={formatCurrency(Number(loanFacilityFieldValue(["totalLoanAgreementAmount", "total_loan_agreement_amount"], "0")))} />
+                    {/* Squashed: 3 boxes sharing the width of 2 normal slots, fixed regardless of viewport. */}
+                    <div className="col-span-2 grid grid-cols-3 gap-3">
+                      <FieldBox label="Currency" value={loanFacilityFieldValue(["currency"])} />
+                      <FieldBox label="Annual Interest Rate %" value={loanFacilityFieldValue(["annualInterestRate", "annual_interest_rate"], "0")} />
+                      <FieldBox label="Days in Year" value={loanFacilityFieldValue(["daysInYear", "days_in_year"], "365")} />
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className={`mt-6 rounded-xl border p-4 shadow-sm ${isDarkMode ? "border-gray-700/80 bg-gray-800/80" : "border-gray-200 bg-white"}`}>

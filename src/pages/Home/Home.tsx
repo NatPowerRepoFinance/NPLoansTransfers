@@ -347,6 +347,7 @@ export default function Home() {
       currency: 'EUR' as LoanFacility['currency'],
       annualInterestRate: 0,
       daysInYear: 365,
+      totalLoanAgreementAmount: 0,
       agreementEndDate: '',
       addRow: false,
   };
@@ -2553,6 +2554,7 @@ export default function Home() {
       currency: selectedLoanFacility.currency,
       annualInterestRate: selectedLoanFacility.annualInterestRate,
       daysInYear: selectedLoanFacility.daysInYear,
+      totalLoanAgreementAmount: Number(selectedLoanFacility.totalLoanAgreementAmount ?? 0),
       agreementEndDate: String(selectedLoanFacility.agreementEndDate ?? ""),
       addRow: Boolean(selectedLoanFacility.addRow),
     })
@@ -2595,6 +2597,63 @@ export default function Home() {
     }
   };
 
+  /** Mirrors the pinned "Projected" row shown at the bottom of the on-screen schedule grid:
+   * interest accrued on the outstanding principal from the last row through the loan's
+   * agreement end date, with no further draw downs or repayments assumed. */
+  const getProjectedScheduleRow = () => {
+    const facility = selectedLoanFacility as any;
+    if (!facility || calculatedRows.length === 0) return null;
+
+    const lastRow = calculatedRows[calculatedRows.length - 1] as any;
+    const agreementEndDate = String(
+      facility?.agreementEndDate ?? facility?.agreement_end_date ??
+      facility?.closeDate ?? facility?.close_date ?? ""
+    ).substring(0, 10);
+    const annualInterestRate = Number(facility?.annualInterestRate ?? facility?.annual_interest_rate ?? 0);
+    const daysInYear = Number(facility?.daysInYear ?? facility?.days_in_year ?? 365) || 365;
+    const lastEndDate = String(lastRow?.endDate ?? lastRow?.end_date ?? "").substring(0, 10);
+    const outstandingPrincipal = Number(lastRow?.cumulativePrincipal ?? lastRow?.cumulative_principal ?? 0);
+    const lastCumulativeInterest = Number(lastRow?.cumulativeInterest ?? lastRow?.cumulative_interest ?? 0);
+    const lastCumulativeFee = Number(lastRow?.cumulativeFee ?? lastRow?.cumulative_fee ?? 0);
+    const msInDay = 1000 * 60 * 60 * 24;
+    const remainingDays = agreementEndDate && lastEndDate
+      ? Math.max(0, Math.round((new Date(agreementEndDate).getTime() - new Date(lastEndDate).getTime()) / msInDay))
+      : 0;
+
+    if (remainingDays <= 0) return null;
+
+    const projectedAdditionalInterest = (outstandingPrincipal * annualInterestRate * remainingDays) / (100 * daysInYear);
+    const projectedCumulativeInterest = lastCumulativeInterest + projectedAdditionalInterest;
+    const projectedStartDate = (() => {
+      const d = new Date(lastEndDate);
+      d.setDate(d.getDate() + 1);
+      return d.toISOString().substring(0, 10);
+    })();
+
+    return {
+      id: "projected",
+      scheduleIndex: "Projected" as unknown as number,
+      startDate: projectedStartDate,
+      endDate: agreementEndDate,
+      lenderBankAccount: "",
+      borrowerBankAccount: "",
+      annualInterestRate: 3.5,
+      days: remainingDays,
+      drawDown: 0,
+      repayment: 0,
+      principal: outstandingPrincipal,
+      cumulativePrincipal: outstandingPrincipal,
+      interest: projectedAdditionalInterest,
+      interestAdjustment: 0,
+      cumulativeInterest: projectedCumulativeInterest,
+      cumulativeTotal: outstandingPrincipal + projectedCumulativeInterest,
+      total: 0,
+      fees: 0,
+      cumulativeFee: lastCumulativeFee,
+      description: `${remainingDays} day${remainingDays !== 1 ? "s" : ""} to agreement end date`,
+    };
+  };
+
   const exportLoanFacilityToExcel = () => {
     if (!selectedLoanFacility) {
       toast.error("Please select a Loan Facility first.");
@@ -2606,7 +2665,7 @@ export default function Home() {
         ID: selectedLoanFacility.id,
         Name: selectedLoanFacility.name,
         Status: loanFacilityFieldValue(["status"]),
-        "Start Date": formatDate(
+        "Agreement Start Date": formatDate(
           loanFacilityFieldValue(
             ["startDate", "start_date", "agreementDate", "agreement_date"],
             "-"
@@ -2621,6 +2680,9 @@ export default function Home() {
           loanFacilityFieldValue(["agreementEndDate", "agreement_end_date"], "-")
         ),
         Currency: loanFacilityFieldValue(["currency"]),
+        "Total Loan Agreement Amount": formatCurrency(
+          Number(loanFacilityFieldValue(["totalLoanAgreementAmount", "total_loan_agreement_amount"], "0"))
+        ),
         "Annual Interest Rate %": loanFacilityFieldValue(
           ["annualInterestRate", "annual_interest_rate"],
           "0"
@@ -2629,7 +2691,7 @@ export default function Home() {
       },
     ];
 
-    const scheduleRows = calculatedRows.map((row) => ({
+    const toScheduleRow = (row: (typeof calculatedRows)[number]) => ({
       Index: row.scheduleIndex,
       "Start Date": formatDate(row.startDate),
       "End Date": formatDate(row.endDate),
@@ -2649,7 +2711,13 @@ export default function Home() {
       "Cumulative Total": row.cumulativeTotal,
       Fees: row.fees,
       "Cumulative Fees": row.cumulativeFee,
-    }));
+    });
+
+    const scheduleRows = calculatedRows.map(toScheduleRow);
+    const projectedRow = getProjectedScheduleRow();
+    if (projectedRow) {
+      scheduleRows.push(toScheduleRow(projectedRow as unknown as (typeof calculatedRows)[number]));
+    }
 
     const workbook = XLSX.utils.book_new();
     const detailsSheet = XLSX.utils.json_to_sheet(loanDetailsRows);
@@ -2697,13 +2765,17 @@ export default function Home() {
       body: [
         ["Status", loanFacilityFieldValue(["status"])],
         [
-          "Start Date",
+          "Agreement Start Date",
           formatDate(
             loanFacilityFieldValue(
               ["startDate", "start_date", "agreementDate", "agreement_date"],
               "-"
             )
           ),
+        ],
+        [
+          "Agreement End Date",
+          formatDate(loanFacilityFieldValue(["agreementEndDate", "agreement_end_date"], "-")),
         ],
         [
           "Close Date",
@@ -2713,11 +2785,12 @@ export default function Home() {
         ],
         ["Lender", loanFacilityFieldValue(["lender", "lenderName"])],
         ["Borrower", loanFacilityFieldValue(["borrower", "borrowerName"])],
-        [
-          "Agreement End Date",
-          formatDate(loanFacilityFieldValue(["agreementEndDate", "agreement_end_date"], "-")),
-        ],
+        
         ["Currency", loanFacilityFieldValue(["currency"])],
+        [
+          "Total Loan Agreement Amount",
+          formatCurrency(Number(loanFacilityFieldValue(["totalLoanAgreementAmount", "total_loan_agreement_amount"], "0"))),
+        ],
         [
           "Annual Interest Rate %",
           loanFacilityFieldValue(["annualInterestRate", "annual_interest_rate"], "0"),
@@ -2730,14 +2803,38 @@ export default function Home() {
       styles: { fontSize: 9 },
     });
 
+    const toPdfScheduleRow = (row: (typeof calculatedRows)[number]) => [
+      String(row.scheduleIndex),
+      formatDate(row.startDate),
+      formatDate(row.endDate),
+      row.description || "",
+      formatCurrency(row.annualInterestRate),
+      formatCurrencyInteger(row.days),
+      formatCurrency(row.drawDown),
+      formatCurrency(row.repayment),
+      formatCurrency(row.principal),
+      formatCurrency(row.interest),
+      row.interestAdjustment !== 0 ? formatCurrency(row.interestAdjustment) : "-",
+      formatCurrency(row.total),
+      formatCurrency(row.cumulativePrincipal),
+      formatCurrency(row.cumulativeInterest),
+      formatCurrency(row.cumulativeTotal),
+      formatCurrency(row.fees),
+      formatCurrency(row.cumulativeFee),
+    ];
+
+    const pdfScheduleBody = calculatedRows.map(toPdfScheduleRow);
+    const pdfProjectedRow = getProjectedScheduleRow();
+    if (pdfProjectedRow) {
+      pdfScheduleBody.push(toPdfScheduleRow(pdfProjectedRow as unknown as (typeof calculatedRows)[number]));
+    }
+
     autoTable(doc, {
       startY: (doc as any).lastAutoTable.finalY + 8,
       head: [[
         "Index",
         "Start Date",
         "End Date",
-        "Lender Bank Account",
-        "Borrower Bank Account",
         "Description",
         "Annual Interest Rate %",
         "Days",
@@ -2753,27 +2850,7 @@ export default function Home() {
         "Fees",
         "Cumulative Fees",
       ]],
-      body: calculatedRows.map((row) => [
-        String(row.scheduleIndex),
-        formatDate(row.startDate),
-        formatDate(row.endDate),
-        row.lenderBankAccount || "-",
-        row.borrowerBankAccount || "-",
-        row.description || "",
-        formatCurrency(row.annualInterestRate),
-        formatCurrencyInteger(row.days),
-        formatCurrency(row.drawDown),
-        formatCurrency(row.repayment),
-        formatCurrency(row.principal),
-        formatCurrency(row.interest),
-        row.interestAdjustment !== 0 ? formatCurrency(row.interestAdjustment) : "-",
-        formatCurrency(row.total),
-        formatCurrency(row.cumulativePrincipal),
-        formatCurrency(row.cumulativeInterest),
-        formatCurrency(row.cumulativeTotal),
-        formatCurrency(row.fees),
-        formatCurrency(row.cumulativeFee),
-      ]),
+      body: pdfScheduleBody,
       styles: { fontSize: 7 },
       headStyles: { fillColor: [55, 65, 81] },
     });
@@ -3016,6 +3093,7 @@ export default function Home() {
           currency: loanForm.currency,
           annualInterestRate: Number(loanForm.annualInterestRate),
           daysInYear: Number(loanForm.daysInYear),
+          totalLoanAgreementAmount: Number(loanForm.totalLoanAgreementAmount) || 0,
           status: loanForm.status,
           addRow: loanForm.addRow,
           agreementEndDate: loanForm.agreementEndDate || undefined,
@@ -3030,6 +3108,7 @@ export default function Home() {
           currency: loanForm.currency,
           annualInterestRate: Number(loanForm.annualInterestRate),
           daysInYear: Number(loanForm.daysInYear),
+          totalLoanAgreementAmount: Number(loanForm.totalLoanAgreementAmount) || 0,
           status: loanForm.status,
           addRow: loanForm.addRow,
           agreementEndDate: loanForm.agreementEndDate || undefined,

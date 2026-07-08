@@ -204,6 +204,7 @@ export default function HelpTab({ isDarkMode }: HelpTabProps) {
               <li><strong>Lender / Borrower Company</strong> — must be set up in Admin first.</li>
               <li><strong>Agreement Date</strong> — date the contract starts.</li>
               <li><strong>Currency</strong> — EUR, GBP, USD, etc.</li>
+              <li><strong>Total Loan Agreement Amount</strong> — the maximum amount that can be drawn down. Schedule rows are blocked from saving or importing if the cumulative principal would exceed it.</li>
               <li><strong>Annual Interest Rate</strong> — default rate applied to new schedule rows.</li>
               <li><strong>Days in Year</strong> — 360 or 365 day-count convention used for interest accrual.</li>
             </ul>
@@ -452,6 +453,10 @@ export default function HelpTab({ isDarkMode }: HelpTabProps) {
                 {
                   q: 'I get "Repayment cannot exceed the outstanding principal".',
                   a: "The repayment on a row can be at most the outstanding principal carried forward from prior rows plus any new draw down on the current row. Check the Cumulative Principal column on the previous row.",
+                },
+                {
+                  q: 'I get "Cumulative principal cannot exceed the Total Loan Agreement Amount".',
+                  a: "The loan facility's Total Loan Agreement Amount caps the maximum principal that can ever be outstanding. Reduce the draw down, increase a repayment, or raise the Total Loan Agreement Amount on the loan facility (Edit) if the higher limit is intended.",
                 },
                 {
                   q: "Bank account dropdown is empty.",

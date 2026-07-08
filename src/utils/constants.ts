@@ -82,6 +82,8 @@ export interface LoanFacility {
   currency: Currency
   annualInterestRate: number
   daysInYear: number
+  /** Maximum amount that can be drawn down as the Principal Total. */
+  totalLoanAgreementAmount?: number
   agreementEndDate?: string
   /** When true, backend may auto-add monthly schedule rows (e.g. on 1st of month). */
   addRow?: boolean
