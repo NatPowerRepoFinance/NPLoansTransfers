@@ -1079,7 +1079,31 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                   />
                 </div>
 
-                <div className="md:col-span-2">
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Currency <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={loanForm.currency}
+                    onChange={(e) =>
+                      setLoanForm((prev) => ({
+                        ...prev,
+                        currency: e.target.value as LoanFacility["currency"],
+                      }))
+                    }
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      isDarkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300 text-black"
+                    }`}
+                  >
+                    <option value="">Select currency</option>
+                    <option value="GBP">GBP</option>
+                    <option value="EUR">EUR</option>
+                    <option value="USD">USD</option>
+                    <option value="YEN">YEN</option>
+                  </select>
+                </div>
+
+                <div>
                   <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
                     Total Loan Agreement Amount
                   </label>
@@ -1103,77 +1127,51 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                   />
                 </div>
 
-                <div className="md:col-span-2 grid grid-cols-3 gap-4">
-                  <div>
-                    <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                      Currency <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={loanForm.currency}
-                      onChange={(e) =>
-                        setLoanForm((prev) => ({
-                          ...prev,
-                          currency: e.target.value as LoanFacility["currency"],
-                        }))
-                      }
-                      className={`w-full px-3 py-2 border rounded-lg ${
-                        isDarkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300 text-black"
-                      }`}
-                    >
-                      <option value="">Select currency</option>
-                      <option value="GBP">GBP</option>
-                      <option value="EUR">EUR</option>
-                      <option value="USD">USD</option>
-                      <option value="YEN">YEN</option>
-                    </select>
-                  </div>
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Annual Interest rate %
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={loanForm.annualInterestRate}
+                    onChange={(e) =>
+                      setLoanForm((prev) => ({
+                        ...prev,
+                        annualInterestRate: Number(e.target.value),
+                      }))
+                    }
+                    placeholder="Enter annual interest rate"
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      isDarkMode
+                        ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                        : "bg-white border-gray-300 text-black placeholder-gray-500"
+                    }`}
+                  />
+                </div>
 
-                  <div>
-                    <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                      Annual Interest rate %
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={loanForm.annualInterestRate}
-                      onChange={(e) =>
-                        setLoanForm((prev) => ({
-                          ...prev,
-                          annualInterestRate: Number(e.target.value),
-                        }))
-                      }
-                      placeholder="Enter annual interest rate"
-                      className={`w-full px-3 py-2 border rounded-lg ${
-                        isDarkMode
-                          ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
-                          : "bg-white border-gray-300 text-black placeholder-gray-500"
-                      }`}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                      Days in Year
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={366}
-                      value={loanForm.daysInYear}
-                      onChange={(e) =>
-                        setLoanForm((prev) => ({
-                          ...prev,
-                          daysInYear: Math.min(366, Math.max(0, Number(e.target.value) || 0)),
-                        }))
-                      }
-                      placeholder="Enter days in year"
-                      className={`w-full px-3 py-2 border rounded-lg ${
-                        isDarkMode
-                          ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
-                          : "bg-white border-gray-300 text-black placeholder-gray-500"
-                      }`}
-                    />
-                  </div>
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Days in Year
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={366}
+                    value={loanForm.daysInYear}
+                    onChange={(e) =>
+                      setLoanForm((prev) => ({
+                        ...prev,
+                        daysInYear: Math.min(366, Math.max(0, Number(e.target.value) || 0)),
+                      }))
+                    }
+                    placeholder="Enter days in year"
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      isDarkMode
+                        ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                        : "bg-white border-gray-300 text-black placeholder-gray-500"
+                    }`}
+                  />
                 </div>
 
 
