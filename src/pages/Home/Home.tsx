@@ -2774,6 +2774,10 @@ export default function Home() {
           ),
         ],
         [
+          "Agreement End Date",
+          formatDate(loanFacilityFieldValue(["agreementEndDate", "agreement_end_date"], "-")),
+        ],
+        [
           "Close Date",
           formatDate(
             loanFacilityFieldValue(["closeDate", "close_date"], "-")
@@ -2781,10 +2785,7 @@ export default function Home() {
         ],
         ["Lender", loanFacilityFieldValue(["lender", "lenderName"])],
         ["Borrower", loanFacilityFieldValue(["borrower", "borrowerName"])],
-        [
-          "Agreement End Date",
-          formatDate(loanFacilityFieldValue(["agreementEndDate", "agreement_end_date"], "-")),
-        ],
+        
         ["Currency", loanFacilityFieldValue(["currency"])],
         [
           "Total Loan Agreement Amount",

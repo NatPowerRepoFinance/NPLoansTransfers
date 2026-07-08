@@ -298,11 +298,12 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
           cumulativeTotal: apiRow.cumulativeTotal ?? 0,
         });
       } else {
+        // country-summary/loans doesn't return fee data (always 0) — keep the
+        // locally-computed cumulativeFees instead of clobbering it with that 0.
         merged[idx] = {
           ...merged[idx],
           cumulativePrincipal: apiRow.cumulativePrincipal ?? 0,
           cumulativeInterest: apiRow.cumulativeInterest ?? 0,
-          cumulativeFees: apiRow.cumulativeFees ?? 0,
           cumulativeTotal: apiRow.cumulativeTotal ?? 0,
         };
       }
@@ -316,24 +317,6 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredLoans, companies, asOfDate, apiLoanDetailSummary, selectedCountries]);
 
-  // ── KPI aggregates ────────────────────────────────────────────
-  // Sums the already-merged Loan Detail Summary rows so loans without a locally-loaded
-  // schedule (only known via the country-summary API) still contribute to the totals.
-  const kpis = useMemo(() => {
-    const lenders = new Set<string>();
-    const borrowers = new Set<string>();
-    let cumulativeInterest = 0, cumulativePrincipal = 0, cumulativeTotal = 0, cumulativeFees = 0;
-    for (const row of loanDetailSummary) {
-      if (row.lendingCountry && row.lendingCountry !== "Unknown") lenders.add(row.lendingCountry);
-      if (row.borrowingCountry && row.borrowingCountry !== "Unknown" && row.borrowingCountry !== "-") borrowers.add(row.borrowingCountry);
-      cumulativeInterest += row.cumulativeInterest;
-      cumulativePrincipal += row.cumulativePrincipal;
-      cumulativeTotal += row.cumulativeTotal;
-      cumulativeFees += row.cumulativeFees;
-    }
-    return { lendingCountries: lenders.size, borrowingCountries: borrowers.size, cumulativeInterest, cumulativePrincipal, cumulativeTotal, cumulativeFees };
-  }, [loanDetailSummary]);
-
   // Lender/Borrower Country Summary are country-grouped datasets straight from the API,
   // so the country dropdown filter applies directly by matching row.name (the country).
   const filteredLenderSummary = useMemo(() => {
@@ -345,6 +328,27 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
     if (selectedCountries.size === 0) return borrowerSummary;
     return borrowerSummary.filter((r) => selectedCountries.has(r.name));
   }, [borrowerSummary, selectedCountries]);
+
+  // ── KPI aggregates ────────────────────────────────────────────
+  // Interest/principal/total are summed from the already-merged Loan Detail Summary
+  // rows so loans without a locally-loaded schedule (only known via the
+  // country-summary/loans API) still contribute. That API doesn't return fee data
+  // though (always 0), so Cumulative Fees is instead summed from the lender-summary
+  // API — the only source that reliably reports real fee totals.
+  const kpis = useMemo(() => {
+    const lenders = new Set<string>();
+    const borrowers = new Set<string>();
+    let cumulativeInterest = 0, cumulativePrincipal = 0, cumulativeTotal = 0;
+    for (const row of loanDetailSummary) {
+      if (row.lendingCountry && row.lendingCountry !== "Unknown") lenders.add(row.lendingCountry);
+      if (row.borrowingCountry && row.borrowingCountry !== "Unknown" && row.borrowingCountry !== "-") borrowers.add(row.borrowingCountry);
+      cumulativeInterest += row.cumulativeInterest;
+      cumulativePrincipal += row.cumulativePrincipal;
+      cumulativeTotal += row.cumulativeTotal;
+    }
+    const cumulativeFees = filteredLenderSummary.reduce((sum, row) => sum + row.cumulativeFees, 0);
+    return { lendingCountries: lenders.size, borrowingCountries: borrowers.size, cumulativeInterest, cumulativePrincipal, cumulativeTotal, cumulativeFees };
+  }, [loanDetailSummary, filteredLenderSummary]);
 
   // ── Pagination ────────────────────────────────────────────────
   const [loanDetailPage, setLoanDetailPage] = useState(0);
