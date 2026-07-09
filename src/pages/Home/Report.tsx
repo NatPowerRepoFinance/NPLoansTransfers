@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "react-toastify";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -46,8 +47,6 @@ type Totals = {
   cumulativeTotal: number;
   cumulativeFees: number;
 };
-
-type CountryRow = Totals & { country: string };
 
 type NameSummaryRow = {
   name: string;
@@ -124,8 +123,6 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
 
   // ── Show / hide section toggles ───────────────────────────────
   const [showPanelSummary, setShowPanelSummary] = useState(true);
-  const [showLendingCountrySummary] = useState(true);
-  const [showBorrowingCountrySummary] = useState(true);
   const [showLoanDetailSummary, setShowLoanDetailSummary] = useState(true);
   const [showBorrowerSummary, setShowBorrowerSummary] = useState(true);
   const [showLenderSummary, setShowLenderSummary] = useState(true);
@@ -140,28 +137,37 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
   // ── Borrower / Lender summary date range ───────────────────────
   const [summaryStartDate, setSummaryStartDate] = useState("");
   const [summaryEndDate, setSummaryEndDate] = useState("");
+  // True while the date-filtered API data is being (re)fetched — exports must not
+  // run during this window, or they'd bundle the previous filter's stale results.
+  const [isSummaryLoading, setIsSummaryLoading] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("poAccessToken");
     if (!token) return;
     let cancelled = false;
-    getBorrowerSummaryReport(token, summaryStartDate || undefined, summaryEndDate || undefined)
-      .then((rows) => {
-        if (!cancelled) {
-          setBorrowerSummary(rows.map((r) => ({ name: r.country, cumulativeInterest: r.cumulativeInterest, cumulativePrincipal: r.cumulativePrincipal, cumulativeFees: r.cumulativeFees, cumulativeTotal: r.cumulativeTotal })));
-        }
-      })
-      .catch(() => {});
-    getLenderSummaryReport(token, summaryStartDate || undefined, summaryEndDate || undefined)
-      .then((rows) => {
-        if (!cancelled) {
-          setLenderSummary(rows.map((r) => ({ name: r.country, cumulativeInterest: r.cumulativeInterest, cumulativePrincipal: r.cumulativePrincipal, cumulativeFees: r.cumulativeFees, cumulativeTotal: r.cumulativeTotal })));
-        }
-      })
-      .catch(() => {});
-    getCountrySummaryLoansReport(token, summaryStartDate || undefined, summaryEndDate || undefined)
-      .then((rows) => { if (!cancelled) setApiLoanDetailSummary(rows); })
-      .catch(() => {});
+    setIsSummaryLoading(true);
+    const requests = [
+      getBorrowerSummaryReport(token, summaryStartDate || undefined, summaryEndDate || undefined)
+        .then((rows) => {
+          if (!cancelled) {
+            setBorrowerSummary(rows.map((r) => ({ name: r.country, cumulativeInterest: r.cumulativeInterest, cumulativePrincipal: r.cumulativePrincipal, cumulativeFees: r.cumulativeFees, cumulativeTotal: r.cumulativeTotal })));
+          }
+        })
+        .catch(() => {}),
+      getLenderSummaryReport(token, summaryStartDate || undefined, summaryEndDate || undefined)
+        .then((rows) => {
+          if (!cancelled) {
+            setLenderSummary(rows.map((r) => ({ name: r.country, cumulativeInterest: r.cumulativeInterest, cumulativePrincipal: r.cumulativePrincipal, cumulativeFees: r.cumulativeFees, cumulativeTotal: r.cumulativeTotal })));
+          }
+        })
+        .catch(() => {}),
+      getCountrySummaryLoansReport(token, summaryStartDate || undefined, summaryEndDate || undefined)
+        .then((rows) => { if (!cancelled) setApiLoanDetailSummary(rows); })
+        .catch(() => {}),
+    ];
+    Promise.allSettled(requests).then(() => {
+      if (!cancelled) setIsSummaryLoading(false);
+    });
     return () => { cancelled = true; };
   }, [summaryStartDate, summaryEndDate]);
 
@@ -222,46 +228,6 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
       return !end || end <= asOfDate;
     });
   };
-
-  // ── Lending Country Summary (Table 1) ─────────────────────────
-  const lendingCountrySummary = useMemo<CountryRow[]>(() => {
-    const map = new Map<string, Totals>();
-    for (const loan of filteredLoans) {
-      const country = companies.find((c) => c.id === loan.lenderCompanyId)?.country?.trim() || "Unknown";
-      const t = computeRowTotals(loan, filterSchedule(Array.isArray(loan.schedule) ? loan.schedule : []));
-      const prev = map.get(country) ?? { cumulativeInterest: 0, cumulativePrincipal: 0, cumulativeTotal: 0, cumulativeFees: 0 };
-      map.set(country, {
-        cumulativeInterest: prev.cumulativeInterest + t.cumulativeInterest,
-        cumulativePrincipal: prev.cumulativePrincipal + t.cumulativePrincipal,
-        cumulativeTotal: prev.cumulativeTotal + t.cumulativeTotal,
-        cumulativeFees: prev.cumulativeFees + t.cumulativeFees,
-      });
-    }
-    return Array.from(map.entries())
-      .map(([country, v]) => ({ country, ...v }))
-      .sort((a, b) => a.country.localeCompare(b.country));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredLoans, companies, asOfDate]);
-
-  // ── Borrowing Country Summary (Table 1A) ──────────────────────
-  const borrowingCountrySummary = useMemo<CountryRow[]>(() => {
-    const map = new Map<string, Totals>();
-    for (const loan of filteredLoans) {
-      const country = companies.find((c) => c.id === loan.borrowerCompanyId)?.country?.trim() || "Unknown";
-      const t = computeRowTotals(loan, filterSchedule(Array.isArray(loan.schedule) ? loan.schedule : []));
-      const prev = map.get(country) ?? { cumulativeInterest: 0, cumulativePrincipal: 0, cumulativeTotal: 0, cumulativeFees: 0 };
-      map.set(country, {
-        cumulativeInterest: prev.cumulativeInterest + t.cumulativeInterest,
-        cumulativePrincipal: prev.cumulativePrincipal + t.cumulativePrincipal,
-        cumulativeTotal: prev.cumulativeTotal + t.cumulativeTotal,
-        cumulativeFees: prev.cumulativeFees + t.cumulativeFees,
-      });
-    }
-    return Array.from(map.entries())
-      .map(([country, v]) => ({ country, ...v }))
-      .sort((a, b) => a.country.localeCompare(b.country));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredLoans, companies, asOfDate]);
 
   // ── Loan Detail Summary (Table 2) ─────────────────────────────
   const loanDetailSummary = useMemo<LoanDetailRow[]>(() => {
@@ -385,6 +351,10 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
 
   // ── Excel ─────────────────────────────────────────────────────
   const exportToExcel = () => {
+    if (isSummaryLoading) {
+      toast.error("Report data is still loading for the selected filters. Please wait a moment and try again.");
+      return;
+    }
     const wb = XLSX.utils.book_new();
 
     // Sheet 1: Summary KPIs
@@ -407,31 +377,10 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
       XLSX.utils.book_append_sheet(wb, summaryWs, "Summary");
     }
 
-    // Sheet 2: Lending Country Summary
-    if (showLendingCountrySummary) {
-      const lendingWs = XLSX.utils.json_to_sheet(lendingCountrySummary.map((r) => ({
-        "Lending Country": r.country,
-        "Cumulative Interest": +r.cumulativeInterest.toFixed(2),
-        "Cumulative Principal": +r.cumulativePrincipal.toFixed(2),
-        "Cumulative Fees": +r.cumulativeFees.toFixed(2),
-        "Cumulative Total": +r.cumulativeTotal.toFixed(2),
-      })));
-      lendingWs["!cols"] = [{ wch: 24 }, { wch: 20 }, { wch: 22 }, { wch: 18 }, { wch: 18 }];
-      XLSX.utils.book_append_sheet(wb, lendingWs, "Lending Country Summary");
-    }
-
-    // Sheet 3: Borrowing Country Summary
-    if (showBorrowingCountrySummary) {
-      const borrowingWs = XLSX.utils.json_to_sheet(borrowingCountrySummary.map((r) => ({
-        "Borrowing Country": r.country,
-        "Cumulative Interest": +r.cumulativeInterest.toFixed(2),
-        "Cumulative Principal": +r.cumulativePrincipal.toFixed(2),
-        "Cumulative Fees": +r.cumulativeFees.toFixed(2),
-        "Cumulative Total": +r.cumulativeTotal.toFixed(2),
-      })));
-      borrowingWs["!cols"] = [{ wch: 24 }, { wch: 20 }, { wch: 22 }, { wch: 18 }, { wch: 18 }];
-      XLSX.utils.book_append_sheet(wb, borrowingWs, "Borrowing Country Summary");
-    }
+    // Note: Lending/Borrowing Country Summary (grouped by local schedule data rather
+    // than the API) aren't shown on-screen anymore and have no "Show" toggle, so they're
+    // intentionally excluded here — otherwise every export would always bundle them in
+    // regardless of what the user has configured.
 
     // Sheet 4: Loan Detail Summary
     if (showLoanDetailSummary) {
@@ -486,6 +435,10 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
 
   // ── PDF ───────────────────────────────────────────────────────
   const exportToPDF = async () => {
+    if (isSummaryLoading) {
+      toast.error("Report data is still loading for the selected filters. Please wait a moment and try again.");
+      return;
+    }
     const doc = new jsPDF({ orientation: "landscape" });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
@@ -557,31 +510,8 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
       hasContent = true;
     }
 
-    // Table 1: Lending Country Summary
-    if (showLendingCountrySummary) {
-      startSection("Lending Country Summary", false);
-      autoTable(doc, {
-        startY: y,
-        head: [["Lending Country", "Cumulative Interest", "Cumulative Principal", "Cumulative Fees", "Cumulative Total"]],
-        body: lendingCountrySummary.map((r) => [r.country, fmt(r.cumulativeInterest), fmt(r.cumulativePrincipal), fmt(r.cumulativeFees), fmt(r.cumulativeTotal)]),
-        headStyles, alternateRowStyles: altRowStyles,
-        columnStyles: numCols([1, 2, 3, 4]),
-        styles: { fontSize: 8 }, margin: { left: 14, right: 14 },
-      });
-    }
-
-    // Table 2: Borrowing Country Summary
-    if (showBorrowingCountrySummary) {
-      startSection("Borrowing Country Summary", false);
-      autoTable(doc, {
-        startY: y,
-        head: [["Borrowing Country", "Cumulative Interest", "Cumulative Principal", "Cumulative Fees", "Cumulative Total"]],
-        body: borrowingCountrySummary.map((r) => [r.country, fmt(r.cumulativeInterest), fmt(r.cumulativePrincipal), fmt(r.cumulativeFees), fmt(r.cumulativeTotal)]),
-        headStyles, alternateRowStyles: altRowStyles,
-        columnStyles: numCols([1, 2, 3, 4]),
-        styles: { fontSize: 8 }, margin: { left: 14, right: 14 },
-      });
-    }
+    // Note: Lending/Borrowing Country Summary aren't shown on-screen anymore and have
+    // no "Show" toggle, so they're intentionally excluded here.
 
     // Table 3: Loan Detail Summary — always starts on its own page
     if (showLoanDetailSummary) {
@@ -641,6 +571,10 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
 
   // ── PPT ───────────────────────────────────────────────────────
   const exportToPPT = () => {
+    if (isSummaryLoading) {
+      toast.error("Report data is still loading for the selected filters. Please wait a moment and try again.");
+      return;
+    }
     const pptx = new PptxGenJS();
     pptx.layout = "LAYOUT_WIDE";
 
@@ -684,43 +618,8 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
       kpiSlide.addText(`Generated: ${exportStr}${activeFilterLabel ? `   |   Filters: ${activeFilterLabel}` : ""}`, { x: 0.4, y: 7.0, w: 12.5, h: 0.3, fontSize: 8, color: GRY });
     }
 
-    // ── Slide 3: Lending Country Summary ──
-    if (showLendingCountrySummary) {
-      const lSlide = pptx.addSlide();
-      lSlide.addText("Lending Country Summary", { x: 0.4, y: 0.15, w: 12.5, h: 0.5, fontSize: 18, bold: true, color: IND });
-      lSlide.addTable(
-        [
-          [hdr("Lending Country"), hdr("Cumulative Interest", "right"), hdr("Cumulative Principal", "right"), hdr("Cumulative Fees", "right"), hdr("Cumulative Total", "right")],
-          ...lendingCountrySummary.map((r, i) => [
-            cel(r.country, false, i % 2 === 1),
-            cel(fmt(r.cumulativeInterest), true, i % 2 === 1),
-            cel(fmt(r.cumulativePrincipal), true, i % 2 === 1),
-            cel(fmt(r.cumulativeFees), true, i % 2 === 1),
-            cel(fmt(r.cumulativeTotal), true, i % 2 === 1),
-          ]),
-        ] as any,
-        { x: 0.4, y: 0.82, w: 12.5, h: 6.2, colW: [3.5, 2.4, 2.4, 2.0, 2.2] }
-      );
-    }
-
-    // ── Slide 4: Borrowing Country Summary ──
-    if (showBorrowingCountrySummary) {
-      const bSlide = pptx.addSlide();
-      bSlide.addText("Borrowing Country Summary", { x: 0.4, y: 0.15, w: 12.5, h: 0.5, fontSize: 18, bold: true, color: IND });
-      bSlide.addTable(
-        [
-          [hdr("Borrowing Country"), hdr("Cumulative Interest", "right"), hdr("Cumulative Principal", "right"), hdr("Cumulative Fees", "right"), hdr("Cumulative Total", "right")],
-          ...borrowingCountrySummary.map((r, i) => [
-            cel(r.country, false, i % 2 === 1),
-            cel(fmt(r.cumulativeInterest), true, i % 2 === 1),
-            cel(fmt(r.cumulativePrincipal), true, i % 2 === 1),
-            cel(fmt(r.cumulativeFees), true, i % 2 === 1),
-            cel(fmt(r.cumulativeTotal), true, i % 2 === 1),
-          ]),
-        ] as any,
-        { x: 0.4, y: 0.82, w: 12.5, h: 6.2, colW: [3.5, 2.4, 2.4, 2.0, 2.2] }
-      );
-    }
+    // Note: Lending/Borrowing Country Summary aren't shown on-screen anymore and have
+    // no "Show" toggle, so they're intentionally excluded here.
 
     // ── Slide 5: Loan Detail Summary ──
     if (showLoanDetailSummary) {
@@ -882,9 +781,33 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
         <div className="mb-2 flex flex-wrap items-center gap-3">
           <h2 className="text-2xl font-bold tracking-tight flex-1 min-w-0">Country Summary Report</h2>
           <div className="flex items-center gap-2 flex-wrap shrink-0">
-            <button type="button" onClick={exportToExcel} className={exportCls}>Export Excel</button>
-            <button type="button" onClick={exportToPDF} className={exportCls}>Export PDF</button>
-            <button type="button" onClick={exportToPPT} className={exportCls}>Export PPT</button>
+            <button
+              type="button"
+              onClick={exportToExcel}
+              disabled={isSummaryLoading}
+              title={isSummaryLoading ? "Report data is still loading for the selected filters" : undefined}
+              className={`${exportCls} ${isSummaryLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              Export Excel
+            </button>
+            <button
+              type="button"
+              onClick={exportToPDF}
+              disabled={isSummaryLoading}
+              title={isSummaryLoading ? "Report data is still loading for the selected filters" : undefined}
+              className={`${exportCls} ${isSummaryLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              Export PDF
+            </button>
+            <button
+              type="button"
+              onClick={exportToPPT}
+              disabled={isSummaryLoading}
+              title={isSummaryLoading ? "Report data is still loading for the selected filters" : undefined}
+              className={`${exportCls} ${isSummaryLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              Export PPT
+            </button>
           </div>
         </div>
 
