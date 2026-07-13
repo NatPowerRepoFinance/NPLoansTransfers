@@ -202,7 +202,8 @@ export default function HelpTab({ isDarkMode }: HelpTabProps) {
               <li><strong>Facility Name</strong> — unique label.</li>
               <li><strong>Status</strong> — Active or Closed.</li>
               <li><strong>Lender / Borrower Company</strong> — must be set up in Admin first.</li>
-              <li><strong>Agreement Date</strong> — date the contract starts.</li>
+              <li><strong>Agreement Start Date</strong> — date the contract starts.</li>
+              <li><strong>Agreement End Date</strong> — optional; schedule rows can't have an End Date later than this.</li>
               <li><strong>Currency</strong> — EUR, GBP, USD, etc.</li>
               <li><strong>Total Loan Agreement Amount</strong> — the maximum amount that can be drawn down. Schedule rows are blocked from saving or importing if the cumulative principal would exceed it.</li>
               <li><strong>Annual Interest Rate</strong> — default rate applied to new schedule rows.</li>

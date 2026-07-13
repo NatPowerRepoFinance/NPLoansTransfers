@@ -494,13 +494,18 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
   })();
   const hasSelectedLoanFacility = selectedLoanId.trim().length > 0;
   const canDeleteSelectedLoan = hasSelectedLoanFacility && canDeleteLoanFacility;
+  const isAgreementEndDateBeforeStart =
+    !!loanForm.agreementDate &&
+    !!loanForm.agreementEndDate &&
+    loanForm.agreementEndDate < loanForm.agreementDate;
   const isLoanFacilitySubmitDisabled =
     !loanForm.facilityName.trim() ||
     !loanForm.status ||
     !loanForm.lenderCompanyId ||
     !loanForm.borrowerCompanyId ||
     !loanForm.agreementDate ||
-    !loanForm.currency;
+    !loanForm.currency ||
+    isAgreementEndDateBeforeStart;
   const isLoanFacilityUnchanged =
     !isCreatingLoan &&
     !!selectedLoanFacility &&
@@ -1069,14 +1074,20 @@ export default function LoanFacilityTab(props: LoanFacilityTabProps) {
                   </label>
                   <input
                     type="date"
+                    min={loanForm.agreementDate || undefined}
                     value={loanForm.agreementEndDate}
                     onChange={(e) =>
                       setLoanForm((prev) => ({ ...prev, agreementEndDate: e.target.value }))
                     }
                     className={`w-full px-3 py-2 border rounded-lg ${
                       isDarkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300 text-black"
-                    }`}
+                    } ${isAgreementEndDateBeforeStart ? "border-red-500" : ""}`}
                   />
+                  {isAgreementEndDateBeforeStart && (
+                    <p className="mt-1 text-xs text-red-500">
+                      Agreement End Date cannot be earlier than the Agreement Start Date.
+                    </p>
+                  )}
                 </div>
 
                 <div>
