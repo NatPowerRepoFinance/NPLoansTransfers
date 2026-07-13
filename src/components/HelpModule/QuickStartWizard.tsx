@@ -30,9 +30,17 @@ export function QuickStartWizard({
     ? "bg-gray-700/50 border-gray-600 text-gray-400"
     : "bg-gray-50 border-gray-300 text-gray-500";
 
+  const isLastStep = step === steps.length - 1;
+
   const markDone = () => {
     setCompleted((prev) => new Set([...prev, step]));
-    if (step < steps.length - 1) setStep(step + 1);
+    if (!isLastStep) {
+      setStep(step + 1);
+    } else {
+      // Nothing else changes on the final step (no next step to advance to), so
+      // collapse the guide to make "Finish" visibly do something.
+      setCollapsed(true);
+    }
   };
 
   return (
@@ -127,7 +135,7 @@ export function QuickStartWizard({
                 onClick={markDone}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-linear-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white transition-all shadow-sm"
               >
-                {step === steps.length - 1 ? (
+                {isLastStep ? (
                   "Finish"
                 ) : (
                   <>
