@@ -140,10 +140,13 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
   // True while the date-filtered API data is being (re)fetched — exports must not
   // run during this window, or they'd bundle the previous filter's stale results.
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
+  const isSummaryDateRangeInvalid =
+    !!summaryStartDate && !!summaryEndDate && summaryEndDate < summaryStartDate;
 
   useEffect(() => {
     const token = localStorage.getItem("poAccessToken");
     if (!token) return;
+    if (isSummaryDateRangeInvalid) return;
     let cancelled = false;
     setIsSummaryLoading(true);
     const requests = [
@@ -355,6 +358,10 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
       toast.error("Report data is still loading for the selected filters. Please wait a moment and try again.");
       return;
     }
+    if (isSummaryDateRangeInvalid) {
+      toast.error('"Summary from" date cannot be later than the "to" date. Please fix the date range before exporting.');
+      return;
+    }
     const wb = XLSX.utils.book_new();
 
     // Sheet 1: Summary KPIs
@@ -432,6 +439,10 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
   const exportToPDF = async () => {
     if (isSummaryLoading) {
       toast.error("Report data is still loading for the selected filters. Please wait a moment and try again.");
+      return;
+    }
+    if (isSummaryDateRangeInvalid) {
+      toast.error('"Summary from" date cannot be later than the "to" date. Please fix the date range before exporting.');
       return;
     }
     const doc = new jsPDF({ orientation: "landscape" });
@@ -575,6 +586,10 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
   const exportToPPT = async () => {
     if (isSummaryLoading) {
       toast.error("Report data is still loading for the selected filters. Please wait a moment and try again.");
+      return;
+    }
+    if (isSummaryDateRangeInvalid) {
+      toast.error('"Summary from" date cannot be later than the "to" date. Please fix the date range before exporting.');
       return;
     }
     let logoDataUrl: string | null = null;
@@ -791,33 +806,28 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
         <div className="mb-2 flex flex-wrap items-center gap-3">
           <h2 className="text-2xl font-bold tracking-tight flex-1 min-w-0">Country Summary Report</h2>
           <div className="flex items-center gap-2 flex-wrap shrink-0">
-            <button
-              type="button"
-              onClick={exportToExcel}
-              disabled={isSummaryLoading}
-              title={isSummaryLoading ? "Report data is still loading for the selected filters" : undefined}
-              className={`${exportCls} ${isSummaryLoading ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              Export Excel
-            </button>
-            <button
-              type="button"
-              onClick={exportToPDF}
-              disabled={isSummaryLoading}
-              title={isSummaryLoading ? "Report data is still loading for the selected filters" : undefined}
-              className={`${exportCls} ${isSummaryLoading ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              Export PDF
-            </button>
-            <button
-              type="button"
-              onClick={exportToPPT}
-              disabled={isSummaryLoading}
-              title={isSummaryLoading ? "Report data is still loading for the selected filters" : undefined}
-              className={`${exportCls} ${isSummaryLoading ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              Export PPT
-            </button>
+            {(() => {
+              const exportDisabled = isSummaryLoading || isSummaryDateRangeInvalid;
+              const exportTitle = isSummaryLoading
+                ? "Report data is still loading for the selected filters"
+                : isSummaryDateRangeInvalid
+                ? "Fix the \"Summary from/to\" date range before exporting"
+                : undefined;
+              const exportBtnCls = `${exportCls} ${exportDisabled ? "opacity-50 cursor-not-allowed" : ""}`;
+              return (
+                <>
+                  <button type="button" onClick={exportToExcel} disabled={exportDisabled} title={exportTitle} className={exportBtnCls}>
+                    Export Excel
+                  </button>
+                  <button type="button" onClick={exportToPDF} disabled={exportDisabled} title={exportTitle} className={exportBtnCls}>
+                    Export PDF
+                  </button>
+                  <button type="button" onClick={exportToPPT} disabled={exportDisabled} title={exportTitle} className={exportBtnCls}>
+                    Export PPT
+                  </button>
+                </>
+              );
+            })()}
           </div>
         </div>
 
@@ -860,20 +870,39 @@ export default function ReportTab({ isDarkMode, loans, companies }: ReportTabPro
             </div> */}
 
             {/* Borrower / Lender summary date range */}
-            <div className="flex items-center gap-1.5">
-              <span className={`text-xs font-medium whitespace-nowrap ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>Summary from</span>
-              <input type="date" value={summaryStartDate} onChange={(e) => setSummaryStartDate(e.target.value)} className={inputCls} style={{ minWidth: 140 }} />
-              <span className={`text-xs font-medium whitespace-nowrap ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>to</span>
-              <input type="date" value={summaryEndDate} onChange={(e) => setSummaryEndDate(e.target.value)} className={inputCls} style={{ minWidth: 140 }} />
-              {(summaryStartDate || summaryEndDate) && (
-                <button
-                  type="button"
-                  onClick={() => { setSummaryStartDate(""); setSummaryEndDate(""); }}
-                  title="Reset date range"
-                  className={`h-9 w-9 flex items-center justify-center rounded-lg border text-sm transition ${isDarkMode ? "bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600" : "bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200"}`}
-                >
-                  ×
-                </button>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-1.5">
+                <span className={`text-xs font-medium whitespace-nowrap ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>Summary from</span>
+                <input
+                  type="date"
+                  value={summaryStartDate}
+                  max={summaryEndDate || undefined}
+                  onChange={(e) => setSummaryStartDate(e.target.value)}
+                  className={`${inputCls} ${isSummaryDateRangeInvalid ? "border-red-500" : ""}`}
+                  style={{ minWidth: 140 }}
+                />
+                <span className={`text-xs font-medium whitespace-nowrap ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>to</span>
+                <input
+                  type="date"
+                  value={summaryEndDate}
+                  min={summaryStartDate || undefined}
+                  onChange={(e) => setSummaryEndDate(e.target.value)}
+                  className={`${inputCls} ${isSummaryDateRangeInvalid ? "border-red-500" : ""}`}
+                  style={{ minWidth: 140 }}
+                />
+                {(summaryStartDate || summaryEndDate) && (
+                  <button
+                    type="button"
+                    onClick={() => { setSummaryStartDate(""); setSummaryEndDate(""); }}
+                    title="Reset date range"
+                    className={`h-9 w-9 flex items-center justify-center rounded-lg border text-sm transition ${isDarkMode ? "bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600" : "bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200"}`}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+              {isSummaryDateRangeInvalid && (
+                <p className="text-xs text-red-500">"Summary from" date cannot be later than the "to" date.</p>
               )}
             </div>
 
