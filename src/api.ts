@@ -10,7 +10,13 @@ const PROD_API_BASE_URL =
   import.meta.env.VITE_PROD_API_BASE_URL ||
   "https://as-natpower-loans-transfer-backend-uksouth.azurewebsites.net/loan-and-transfer";
 
-export const API_BASE_URL = import.meta.env.DEV ? DEV_API_BASE_URL : PROD_API_BASE_URL;
+// Both the dev and prod frontend slots are deployed from the same production
+// build, so build mode (import.meta.env.DEV) can't tell them apart at runtime.
+// Detect the environment from the deployed hostname instead.
+const isDevHost = window.location.hostname.includes("loans-transfer-fe-dev");
+
+export const API_BASE_URL =
+  import.meta.env.DEV || isDevHost ? DEV_API_BASE_URL : PROD_API_BASE_URL;
 
 type ApiEnvelope<T> = {
   code: number;
