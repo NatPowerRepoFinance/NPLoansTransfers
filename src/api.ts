@@ -2,7 +2,15 @@ import type { LoanFacility, LoanHistoryEntry, ScheduleItem } from "@/utils/const
 import { parseHistoryJson } from "@/utils/loanHistoryDisplay";
 import type { CompanyHistoryEntry, UserHistoryEntry } from "@/utils/constants";
 
-export const API_BASE_URL = "https://as-natpower-loans-transfer-backend-uksouth.azurewebsites.net/loan-and-transfer";
+const DEV_API_BASE_URL =
+  import.meta.env.VITE_DEV_API_BASE_URL ||
+  "https://as-natpower-loans-transfer-be-dev-uksouth-hgg0hpdcdwbab4b6.uksouth-01.azurewebsites.net/loan-and-transfer";
+
+const PROD_API_BASE_URL =
+  import.meta.env.VITE_PROD_API_BASE_URL ||
+  "https://as-natpower-loans-transfer-backend-uksouth.azurewebsites.net/loan-and-transfer";
+
+export const API_BASE_URL = import.meta.env.DEV ? DEV_API_BASE_URL : PROD_API_BASE_URL;
 
 type ApiEnvelope<T> = {
   code: number;
